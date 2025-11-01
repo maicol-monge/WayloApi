@@ -21,23 +21,6 @@ const wayloConfigRoutes = require("./routes/waylo/configRoutes");
 const wayloFavoritoRoutes = require("./routes/waylo/favoritoRoutes");
 const wayloMediaRoutes = require("./routes/waylo/mediaRoutes");
 
-// Rutas de Waylo (nueva app)
-const wayloAuthRoutes = require("./routes/waylo/authRoutes");
-const wayloPerfilGuiaRoutes = require("./routes/waylo/perfilGuiaRoutes");
-const wayloPerfilClienteRoutes = require("./routes/waylo/perfilClienteRoutes");
-const wayloIdiomaRoutes = require("./routes/waylo/idiomaRoutes");
-const wayloDocumentoRoutes = require("./routes/waylo/documentoRoutes");
-const wayloDisponibilidadRoutes = require("./routes/waylo/disponibilidadRoutes");
-const wayloReservaRoutes = require("./routes/waylo/reservaRoutes");
-const wayloTransaccionRoutes = require("./routes/waylo/transaccionRoutes");
-const wayloConversacionRoutes = require("./routes/waylo/conversacionRoutes");
-const wayloMensajeRoutes = require("./routes/waylo/mensajeRoutes");
-const wayloNotificacionRoutes = require("./routes/waylo/notificacionRoutes");
-const wayloResenaRoutes = require("./routes/waylo/resenaRoutes");
-const wayloConfigRoutes = require("./routes/waylo/configRoutes");
-const wayloFavoritoRoutes = require("./routes/waylo/favoritoRoutes");
-const wayloMediaRoutes = require("./routes/waylo/mediaRoutes");
-
 const app = express(); //Instancia del servidor
 
  //Evitar errores al consumir en Swift iOS y otras aplicaciones
@@ -94,7 +77,7 @@ app.use("/api/waylo/media", wayloMediaRoutes);
 app.get("/api/status", (req, res) => {
   res.json({
     success: true,
-    message: "API de EcoPoints funcionando correctamente",
+    message: "API de Waylo funcionando correctamente",
     timestamp: new Date().toISOString(),
     version: "1.0.0"
   });
