@@ -1,5 +1,6 @@
 require("dotenv").config(); //Cargar variables d entorno
 const express = require("express"); //Crear servidor web
+const http = require('http'); // Para crear el servidor HTTP y acoplar WebSockets
 const cors = require("cors"); //Para permitir solicitudes desde otro dominio
 
 const { db, testConnection } = require("./config/db");
@@ -22,6 +23,8 @@ const wayloFavoritoRoutes = require("./routes/waylo/favoritoRoutes");
 const wayloMediaRoutes = require("./routes/waylo/mediaRoutes");
 
 const app = express(); //Instancia del servidor
+const server = http.createServer(app); // Servidor HTTP
+const { initSocket } = require('./services/socket');
 
  //Evitar errores al consumir en Swift iOS y otras aplicaciones
 const allowedOrigins = [
@@ -103,6 +106,9 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => {
+// Inicializar WebSocket (Socket.IO)
+initSocket(server);
+
+server.listen(PORT, () => {
   console.log(`🚀 Servidor backend corriendo en el puerto ${PORT}`);
 });
