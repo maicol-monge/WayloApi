@@ -13,7 +13,7 @@ const { v4: uuidv4 } = require('uuid');
  * @param {string} folder - Carpeta donde guardar (productos, usuarios, etc.)
  * @returns {Object} - Resultado de la subida
  */
-const subirImagen = async (fileBuffer, fileName, folder = 'productos') => {
+const subirImagen = async (fileBuffer, fileName, folder = 'fotos') => {
   try {
     // Generar nombre único para el archivo
     const fileExtension = path.extname(fileName);
@@ -166,7 +166,8 @@ const getContentType = (fileExtension) => {
     '.png': 'image/png',
     '.gif': 'image/gif',
     '.webp': 'image/webp',
-    '.svg': 'image/svg+xml'
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf'
   };
 
   return contentTypes[fileExtension.toLowerCase()] || 'image/jpeg';
@@ -188,7 +189,7 @@ const getPublicUrl = (path) => {
  * @returns {Object} - Resultado de la validación
  */
 const validarImagen = (fileName, fileSize) => {
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
   const maxSize = 5 * 1024 * 1024; // 5MB
 
   const fileExtension = path.extname(fileName).toLowerCase();
@@ -196,7 +197,7 @@ const validarImagen = (fileName, fileSize) => {
   if (!allowedExtensions.includes(fileExtension)) {
     return {
       valid: false,
-      error: 'Tipo de archivo no permitido. Solo se permiten: JPG, JPEG, PNG, GIF, WEBP'
+      error: 'Tipo de archivo no permitido. Solo se permiten: JPG, JPEG, PNG, GIF, WEBP, PDF'
     };
   }
 

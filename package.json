@@ -1,26 +1,25 @@
 {
-  "name": "controlcitas-backend",
+  "name": "waylo-api",
   "version": "1.0.0",
+  "description": "API Waylo: plataforma de guías turísticos (usuarios, guías, reservas, chat, pagos, reseñas)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [],
+  "keywords": ["waylo", "api", "node", "express"],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
+    "@sendgrid/mail": "^7.7.0",
     "@supabase/supabase-js": "^2.58.0",
-  "resend": "^4.0.0",
-  "@sendgrid/mail": "^7.7.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "multer": "^2.0.2",
-    "mysql2": "^3.14.1",
     "nodemailer": "^7.0.6",
     "pg": "^8.16.3",
+    "resend": "^4.0.0",
     "uuid": "^8.3.2"
   }
 }

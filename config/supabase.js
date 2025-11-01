@@ -10,7 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Cliente administrativo (para operaciones que requieren permisos especiales)
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-const BUCKET_NAME = 'ecopoints_images';
+const BUCKET_NAME = 'waylo_images';
 
 module.exports = {
   supabase,
