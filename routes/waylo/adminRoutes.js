@@ -1,6 +1,18 @@
 const express = require('express');
 const router = express.Router();
 
+// Public admin auth (login/refresh)
+const { loginAdmin, refreshToken, logoutAdmin } = require('../../controllers/waylo/admin/authAdminController');
+router.post('/login', loginAdmin);
+router.post('/refresh', refreshToken);
+
+// Protect remaining admin routes with middleware
+const { requireAdmin } = require('../../middleware/authMiddleware');
+router.use(requireAdmin);
+
+// Logout (protected)
+router.post('/logout', logoutAdmin);
+
 // Users
 const { listUsers, getUser, setRole, setState, setPassword } = require('../../controllers/waylo/admin/userAdminController');
 router.get('/users', listUsers);
