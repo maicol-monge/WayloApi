@@ -21,6 +21,7 @@ const wayloResenaRoutes = require("./routes/waylo/resenaRoutes");
 const wayloConfigRoutes = require("./routes/waylo/configRoutes");
 const wayloFavoritoRoutes = require("./routes/waylo/favoritoRoutes");
 const wayloMediaRoutes = require("./routes/waylo/mediaRoutes");
+const wayloAdminRoutes = require("./routes/waylo/adminRoutes");
 
 const app = express(); //Instancia del servidor
 const server = http.createServer(app); // Servidor HTTP
@@ -75,6 +76,7 @@ app.use("/api/waylo/resenas", wayloResenaRoutes);
 app.use("/api/waylo/config", wayloConfigRoutes);
 app.use("/api/waylo/favoritos", wayloFavoritoRoutes);
 app.use("/api/waylo/media", wayloMediaRoutes);
+app.use("/api/waylo/admin", wayloAdminRoutes);
 
 // Ruta de estado de la API
 app.get("/api/status", (req, res) => {
