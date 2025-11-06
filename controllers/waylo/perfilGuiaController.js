@@ -58,8 +58,11 @@ async function obtenerGuia(req, res) {
     const fotos = await db.query(`SELECT id_foto_guia, foto_url, descripcion, aprobado FROM fotos_guia WHERE id_perfil_guia=$1 AND estado='A' ORDER BY created_at DESC`, [id]);
     // resenas
     const resenas = await db.query(`SELECT r.*, pc.id_perfil_cliente FROM resena r LEFT JOIN perfil_cliente pc ON pc.id_perfil_cliente = r.id_perfil_cliente WHERE r.id_perfil_guia=$1 ORDER BY created_at DESC`, [id]);
+    // idiomas del guía (por id_usuario)
+    const id_usuario = q.rows[0].id_usuario;
+    const idiomas = await db.query('SELECT id_idioma, nombre, nivel FROM idiomas WHERE id_usuario=$1 ORDER BY id_idioma', [id_usuario]);
 
-    res.json({ success: true, data: { perfil: q.rows[0], fotos: fotos.rows, resenas: resenas.rows } });
+    res.json({ success: true, data: { perfil: q.rows[0], fotos: fotos.rows, resenas: resenas.rows, idiomas: idiomas.rows } });
   } catch (err) {
     console.error('[waylo][guias] obtener error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });

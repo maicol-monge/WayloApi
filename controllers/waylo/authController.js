@@ -85,7 +85,7 @@ async function getRolId(nombre) {
 // POST /api/waylo/auth/registro/cliente
 async function registrarCliente(req, res) {
   try {
-    const { nombre, email, contrasena } = req.body;
+    const { nombre, email, contrasena, descripcion, pais, ciudad } = req.body;
     if (!nombre || !email || !contrasena) {
       return res.status(400).json({ success: false, message: 'nombre, email y contrasena son requeridos' });
     }
@@ -111,10 +111,12 @@ async function registrarCliente(req, res) {
     // subir imagen_perfil si viene archivo
     const imagenPerfilPath = await maybeUploadProfile(req.file);
 
-    // crear perfil_cliente con imagen_perfil (opcional)
+    // crear perfil_cliente con campos completos
     const perfil = await db.query(
-      `INSERT INTO perfil_cliente (id_usuario, imagen_perfil) VALUES ($1,$2) RETURNING id_perfil_cliente, imagen_perfil, pais, ciudad`,
-      [userIns.rows[0].id_usuario, imagenPerfilPath]
+      `INSERT INTO perfil_cliente (id_usuario, descripcion, pais, ciudad, imagen_perfil)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [userIns.rows[0].id_usuario, descripcion || null, pais || null, ciudad || null, imagenPerfilPath]
     );
 
     let imagen_perfil_url = null;
@@ -162,7 +164,7 @@ async function registrarGuia(req, res) {
     const perfilIns = await db.query(
       `INSERT INTO perfil_guia (id_usuario, descripcion, pais, ciudad, imagen_perfil, anios_experiencia, precio_hora, precio_dia_personalizado) 
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING id_perfil_guia, verificacion_estado, imagen_perfil`,
+       RETURNING *`,
       [
         userIns.rows[0].id_usuario,
         descripcion || null,
@@ -205,9 +207,9 @@ async function login(req, res) {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (isLocked(email, ip)) return res.status(429).json({ success: false, message: 'Demasiados intentos fallidos. Intenta más tarde.' });
 
-    const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, r.nombre as rol
-                              FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
-                              WHERE u.email=$1 AND u.estado='A'`, [email]);
+  const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, u.id_rol, u.estado, u.created_at, u.updated_at, r.nombre as rol
+                FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
+                WHERE u.email=$1`, [email]);
     if (q.rows.length === 0) {
       recordLoginAttempt(email, ip, false);
       return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
@@ -226,7 +228,19 @@ async function login(req, res) {
     const exp = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8h
     await db.query('INSERT INTO token_sesion (id_usuario, token, refresh_token, expires_at) VALUES ($1,$2,$3,$4)', [user.id_usuario, token, refresh, exp]);
     recordLoginAttempt(email, ip, true);
-    return res.json({ success: true, data: user, token, refreshToken: refresh, expiresAt: exp.toISOString() });
+    // optional: attach perfil summary
+    let perfil = null;
+    try {
+      if (user.rol && user.rol.toLowerCase() === 'guia') {
+        const pg = await db.query('SELECT * FROM perfil_guia WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
+        if (pg.rows.length) perfil = { tipo: 'guia', ...pg.rows[0] };
+      } else if (user.rol && user.rol.toLowerCase() === 'cliente') {
+        const pc = await db.query('SELECT * FROM perfil_cliente WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
+        if (pc.rows.length) perfil = { tipo: 'cliente', ...pc.rows[0] };
+      }
+    } catch (_) { /* ignore perfil attach errors */ }
+
+    return res.json({ success: true, data: user, perfil, token, refreshToken: refresh, expiresAt: exp.toISOString() });
   } catch (err) {
     console.error('[waylo][auth] login error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });

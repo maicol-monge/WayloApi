@@ -4,15 +4,20 @@ Base path: `/api/waylo`
 
 Auth
 
-- POST `/auth/registro/cliente` { nombre, email, contrasena }
-- POST `/auth/registro/guia` { nombre, email, contrasena, descripcion?, idiomas?:[{nombre,nivel?}], ciudad?, pais?, anios_experiencia?, precio_hora?, precio_dia_personalizado? }
-- POST `/auth/login` { email, contrasena }
+- POST `/auth/registro/cliente` (multipart opcional file: `file`) { nombre, email, contrasena, descripcion?, pais?, ciudad? }
+- POST `/auth/registro/guia` (multipart opcional file: `file`) { nombre, email, contrasena, descripcion?, idiomas?:[{nombre,nivel?}], ciudad?, pais?, anios_experiencia?, precio_hora?, precio_dia_personalizado? }
+- POST `/auth/login` { email, contrasena } -> responde con usuario (incluye estado y timestamps), perfil (guia|cliente) y tokens
+- POST `/auth/refresh` { refreshToken }
+- POST `/auth/logout` (Bearer token)
+- POST `/auth/password/forgot` { email }
+- POST `/auth/password/reset` { token, nuevaContrasena }
 
 Perfiles
 
 - GET `/guias` filtros: ciudad, idioma, precio_min, precio_max, rating_min, q, page, pageSize
 - GET `/guias/:id`
 - PUT `/guias/:id` { descripcion?, pais?, ciudad?, anios_experiencia?, precio_hora?, precio_dia_personalizado? }
+- GET incluye: fotos, resenas y idiomas del guía
 - GET `/clientes/:id`
 - PUT `/clientes/:id` { descripcion?, pais?, ciudad? }
 
@@ -45,9 +50,32 @@ Reservas
 - GET `/reservas/cliente/:id_perfil_cliente`
 - PUT `/reservas/:id_reserva/estado` { estado_reserva }
 
+Políticas de reembolso
+
+- GET `/politicas` (query: estado?)
+- GET `/politicas/:id`
+- POST `/politicas` { nombre, descripcion?, porcentaje_reembolso?, fecha_limite?, estado? } (admin)
+- PUT `/politicas/:id` { nombre?, descripcion?, porcentaje_reembolso?, fecha_limite?, estado? } (admin)
+- DELETE `/politicas/:id` (soft delete, admin)
+
+Reembolsos de reserva
+
+- POST `/reembolsos` { id_reserva, id_politica_reembolso?, monto? } (autenticado)
+- GET `/reembolsos/reserva/:id_reserva` (autenticado)
+- PUT `/reembolsos/:id/estado` { estado_reembolso } (admin)
+
 Transacciones
 
 - POST `/transacciones` { id_reserva, metodo_pago?, monto_total, comision_guia?, comision_cliente?, estado_transaccion? }
+- GET `/transacciones/usuario/:id_usuario`
+- GET `/transacciones/guia/:id_perfil_guia`
+
+Facturas
+
+- POST `/facturas` { id_transaccion, id_perfil_guia?, id_perfil_cliente?, monto_total? } (admin)
+- GET `/facturas/transaccion/:id_transaccion`
+- GET `/facturas/guia/:id_perfil_guia`
+- GET `/facturas/cliente/:id_perfil_cliente`
 
 Chat
 
@@ -66,6 +94,11 @@ Reseñas
 
 - POST `/resenas` { id_reserva?, id_perfil_cliente, id_perfil_guia, calificacion, comentario? }
 - GET `/resenas/guia/:id_perfil_guia`
+
+Respuestas a reseñas
+
+- POST `/respuestas` { id_resena, id_usuario, comentario } (autenticado)
+- GET `/respuestas/resena/:id_resena`
 
 Configuración
 
