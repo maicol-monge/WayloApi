@@ -13,6 +13,19 @@ async function obtenerCliente(req, res) {
   }
 }
 
+// GET /api/waylo/clientes/usuario/:id_usuario
+async function obtenerClientePorUsuario(req, res) {
+  try {
+    const { id_usuario } = req.params;
+    const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_usuario=$1`, [id_usuario]);
+    if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
+    res.json({ success: true, data: q.rows[0] });
+  } catch (err) {
+    console.error('[waylo][clientes] obtener por usuario error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
 // PUT /api/waylo/clientes/:id
 async function actualizarCliente(req, res) {
   try {
@@ -40,4 +53,4 @@ async function actualizarCliente(req, res) {
   }
 }
 
-module.exports = { obtenerCliente, actualizarCliente };
+module.exports = { obtenerCliente, obtenerClientePorUsuario, actualizarCliente };
