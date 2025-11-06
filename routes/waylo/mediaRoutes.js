@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { requireAuth } = require('../../middleware/authMiddleware');
 const { uploadSingle, uploadFoto, uploadFotoPerfil, agregarFotoGuia } = require('../../controllers/waylo/mediaController');
 
-router.post('/upload/foto', uploadSingle, uploadFoto);
-router.post('/upload/foto-perfil', uploadSingle, uploadFotoPerfil);
-router.post('/guias/:id_perfil_guia/fotos', uploadSingle, agregarFotoGuia);
+router.post('/upload/foto', requireAuth, uploadSingle, uploadFoto);
+router.post('/upload/foto-perfil', requireAuth, uploadSingle, uploadFotoPerfil);
+router.post('/guias/:id_perfil_guia/fotos', requireAuth, uploadSingle, agregarFotoGuia);
 
 module.exports = router;

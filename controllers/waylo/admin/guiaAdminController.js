@@ -1,4 +1,5 @@
 const { db } = require('../../../config/db');
+const { sendPasswordResetEmail } = require('../../../services/emailService');
 
 // GET /api/waylo/admin/guias
 async function listGuias(req, res) {
@@ -48,6 +49,15 @@ async function setVerification(req, res) {
     if (verificacion_estado === 'aprobado') {
       await db.query("UPDATE documentos_guia SET estado='aprobado', reviewed_by=$1, reviewed_at=NOW() WHERE id_perfil_guia=$2 AND estado='pendiente'", [reviewed_by || null, id]);
     }
+    // crear notificación al guía
+    try {
+      const u = await db.query('SELECT u.id_usuario, u.email, u.nombre FROM perfil_guia pg JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE pg.id_perfil_guia=$1', [id]);
+      if (u.rows.length) {
+        await db.query('INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje) VALUES ($1,$2,$3,$4)', [u.rows[0].id_usuario, 'otros', 'Estado de verificación', `Tu verificación fue actualizada a: ${verificacion_estado}`]);
+      }
+    } catch (e) {
+      // non-blocking
+    }
     res.json({ success: true, data: up.rows[0] });
   } catch (err) {
     console.error('[admin][guias] setVerification error:', err);
@@ -76,6 +86,13 @@ async function setDocumentoEstado(req, res) {
     if (!estado) return res.status(400).json({ success: false, message: 'estado requerido' });
     const up = await db.query('UPDATE documentos_guia SET estado=$1, reviewed_by=$2, reviewed_at=NOW() WHERE id_documento_guia=$3 RETURNING *', [estado, reviewed_by || null, id_documento]);
     if (up.rows.length === 0) return res.status(404).json({ success: false, message: 'Documento no encontrado' });
+    // notificar al guía dueño del documento
+    try {
+      const u = await db.query('SELECT u.id_usuario FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE d.id_documento_guia=$1', [id_documento]);
+      if (u.rows.length) {
+        await db.query('INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje) VALUES ($1,$2,$3,$4)', [u.rows[0].id_usuario, 'otros', 'Revisión de documento', `Tu documento cambió a estado: ${estado}`]);
+      }
+    } catch (e) {}
     res.json({ success: true, data: up.rows[0] });
   } catch (err) {
     console.error('[admin][documentos] setEstado error:', err);

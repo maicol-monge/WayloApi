@@ -20,3 +20,42 @@ async function crearTransaccion(req, res) {
 }
 
 module.exports = { crearTransaccion };
+// GET /api/waylo/transacciones/usuario/:id_usuario
+async function listarPorUsuario(req, res) {
+  try {
+    const { id_usuario } = req.params;
+    const q = await db.query(`
+      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente
+      FROM transaccion t
+      JOIN reservas r ON r.id_reserva = t.id_reserva
+      JOIN perfil_cliente pc ON pc.id_perfil_cliente = r.id_perfil_cliente
+      WHERE pc.id_usuario = $1
+      ORDER BY t.created_at DESC
+    `, [id_usuario]);
+    res.json({ success: true, data: q.rows });
+  } catch (err) {
+    console.error('[waylo][transaccion] listar usuario error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// GET /api/waylo/transacciones/guia/:id_perfil_guia
+async function listarPorGuia(req, res) {
+  try {
+    const { id_perfil_guia } = req.params;
+    const q = await db.query(`
+      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente
+      FROM transaccion t
+      JOIN reservas r ON r.id_reserva = t.id_reserva
+      WHERE r.id_perfil_guia = $1
+      ORDER BY t.created_at DESC
+    `, [id_perfil_guia]);
+    res.json({ success: true, data: q.rows });
+  } catch (err) {
+    console.error('[waylo][transaccion] listar guia error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports.listarPorUsuario = listarPorUsuario;
+module.exports.listarPorGuia = listarPorGuia;

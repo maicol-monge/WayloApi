@@ -1,5 +1,78 @@
 const { db } = require('../../config/db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { subirImagen, obtenerUrlPublica } = require('../../services/imageService');
+const { sendPasswordResetEmail } = require('../../services/emailService');
+
+// simple in-memory login attempt tracking (email+ip)
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOCK_MS = 15 * 60 * 1000; // lock for 15 minutes
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isStrongPassword(pw) {
+  return typeof pw === 'string' && pw.length >= 8;
+}
+
+function recordLoginAttempt(email, ip, success) {
+  const key = `${email}|${ip}`;
+  const now = Date.now();
+  let rec = loginAttempts.get(key);
+  if (!rec) {
+    rec = { count: 0, first: now, lockedUntil: 0 };
+  }
+  if (success) {
+    loginAttempts.delete(key);
+    return;
+  }
+  // failed
+  if (now - rec.first > WINDOW_MS) {
+    rec = { count: 1, first: now, lockedUntil: 0 };
+  } else {
+    rec.count += 1;
+    if (rec.count >= MAX_ATTEMPTS) {
+      rec.lockedUntil = now + LOCK_MS;
+    }
+  }
+  loginAttempts.set(key, rec);
+}
+
+function isLocked(email, ip) {
+  const key = `${email}|${ip}`;
+  const rec = loginAttempts.get(key);
+  if (!rec) return false;
+  if (rec.lockedUntil && rec.lockedUntil > Date.now()) return true;
+  return false;
+}
+
+function signTokens(user) {
+  const secret = process.env.JWT_SECRET || 'changeme';
+  const payload = { id_usuario: user.id_usuario, email: user.email, rol: user.rol };
+  const token = jwt.sign(payload, secret, { expiresIn: '8h' });
+  const refresh = jwt.sign({ ...payload, type: 'refresh' }, secret, { expiresIn: '7d' });
+  return { token, refresh };
+}
+
+// helper: subir opcionalmente foto de perfil a Supabase (carpeta 'foto-perfil')
+async function maybeUploadProfile(file) {
+  try {
+    if (!file) return null;
+    const lower = (file.originalname || '').toLowerCase();
+    if (!/\.(jpg|jpeg|png|gif|webp)$/.test(lower)) {
+      // si no es imagen válida, ignorar subida (opcionalmente podríamos devolver 400)
+      return null;
+    }
+    const result = await subirImagen(file.buffer, file.originalname, 'foto-perfil');
+    if (!result.success) return null;
+    return result.data.path; // path interno del bucket
+  } catch (e) {
+    return null;
+  }
+}
 
 async function getRolId(nombre) {
   const name = nombre.toLowerCase();
@@ -17,6 +90,13 @@ async function registrarCliente(req, res) {
       return res.status(400).json({ success: false, message: 'nombre, email y contrasena son requeridos' });
     }
 
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Email inválido' });
+    }
+    if (!isStrongPassword(contrasena)) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
     const exists = await db.query('SELECT 1 FROM usuario WHERE email=$1', [email]);
     if (exists.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email ya registrado' });
@@ -28,13 +108,22 @@ async function registrarCliente(req, res) {
       [nombre, email, hash, idRol]
     );
 
-    // crear perfil_cliente
+    // subir imagen_perfil si viene archivo
+    const imagenPerfilPath = await maybeUploadProfile(req.file);
+
+    // crear perfil_cliente con imagen_perfil (opcional)
     const perfil = await db.query(
-      `INSERT INTO perfil_cliente (id_usuario) VALUES ($1) RETURNING id_perfil_cliente, imagen_perfil, pais, ciudad`,
-      [userIns.rows[0].id_usuario]
+      `INSERT INTO perfil_cliente (id_usuario, imagen_perfil) VALUES ($1,$2) RETURNING id_perfil_cliente, imagen_perfil, pais, ciudad`,
+      [userIns.rows[0].id_usuario, imagenPerfilPath]
     );
 
-    return res.status(201).json({ success: true, data: { usuario: userIns.rows[0], perfil: perfil.rows[0] } });
+    let imagen_perfil_url = null;
+    if (perfil.rows[0].imagen_perfil) {
+      const signed = await obtenerUrlPublica(perfil.rows[0].imagen_perfil, 3600);
+      if (signed.success) imagen_perfil_url = signed.signedUrl;
+    }
+
+    return res.status(201).json({ success: true, data: { usuario: userIns.rows[0], perfil: { ...perfil.rows[0], imagen_perfil_url } } });
   } catch (err) {
     console.error('[waylo][auth] registrarCliente error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -49,6 +138,13 @@ async function registrarGuia(req, res) {
       return res.status(400).json({ success: false, message: 'nombre, email y contrasena son requeridos' });
     }
 
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Email inválido' });
+    }
+    if (!isStrongPassword(contrasena)) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
     const exists = await db.query('SELECT 1 FROM usuario WHERE email=$1', [email]);
     if (exists.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email ya registrado' });
@@ -61,11 +157,22 @@ async function registrarGuia(req, res) {
       [nombre, email, hash, idRol]
     );
 
+    const imagenPerfilPath = await maybeUploadProfile(req.file);
+
     const perfilIns = await db.query(
-      `INSERT INTO perfil_guia (id_usuario, descripcion, pais, ciudad, anios_experiencia, precio_hora, precio_dia_personalizado) 
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id_perfil_guia, verificacion_estado`,
-      [userIns.rows[0].id_usuario, descripcion || null, pais || null, ciudad || null, anios_experiencia || null, precio_hora || null, precio_dia_personalizado || null]
+      `INSERT INTO perfil_guia (id_usuario, descripcion, pais, ciudad, imagen_perfil, anios_experiencia, precio_hora, precio_dia_personalizado) 
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id_perfil_guia, verificacion_estado, imagen_perfil`,
+      [
+        userIns.rows[0].id_usuario,
+        descripcion || null,
+        pais || null,
+        ciudad || null,
+        imagenPerfilPath || null,
+        anios_experiencia || null,
+        precio_hora || null,
+        precio_dia_personalizado || null
+      ]
     );
 
     // agregar idiomas si vienen
@@ -77,7 +184,13 @@ async function registrarGuia(req, res) {
       }
     }
 
-    return res.status(201).json({ success: true, data: { usuario: userIns.rows[0], perfil: perfilIns.rows[0] } });
+    let imagen_perfil_url = null;
+    if (perfilIns.rows[0].imagen_perfil) {
+      const signed = await obtenerUrlPublica(perfilIns.rows[0].imagen_perfil, 3600);
+      if (signed.success) imagen_perfil_url = signed.signedUrl;
+    }
+
+    return res.status(201).json({ success: true, data: { usuario: userIns.rows[0], perfil: { ...perfilIns.rows[0], imagen_perfil_url } } });
   } catch (err) {
     console.error('[waylo][auth] registrarGuia error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -89,22 +202,78 @@ async function login(req, res) {
   try {
     const { email, contrasena } = req.body;
     if (!email || !contrasena) return res.status(400).json({ success: false, message: 'email y contrasena son requeridos' });
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    if (isLocked(email, ip)) return res.status(429).json({ success: false, message: 'Demasiados intentos fallidos. Intenta más tarde.' });
 
     const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, r.nombre as rol
                               FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
                               WHERE u.email=$1 AND u.estado='A'`, [email]);
-    if (q.rows.length === 0) return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    if (q.rows.length === 0) {
+      recordLoginAttempt(email, ip, false);
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    }
 
     const ok = await bcrypt.compare(contrasena, q.rows[0].contrasena);
-    if (!ok) return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    if (!ok) {
+      recordLoginAttempt(email, ip, false);
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    }
 
     const user = q.rows[0];
     delete user.contrasena;
-    return res.json({ success: true, data: user });
+    const { token, refresh } = signTokens(user);
+    // persist session
+    const exp = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8h
+    await db.query('INSERT INTO token_sesion (id_usuario, token, refresh_token, expires_at) VALUES ($1,$2,$3,$4)', [user.id_usuario, token, refresh, exp]);
+    recordLoginAttempt(email, ip, true);
+    return res.json({ success: true, data: user, token, refreshToken: refresh, expiresAt: exp.toISOString() });
   } catch (err) {
     console.error('[waylo][auth] login error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 }
 
-module.exports = { registrarCliente, registrarGuia, login };
+// POST /api/waylo/auth/refresh
+async function refreshToken(req, res) {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ success: false, message: 'refreshToken requerido' });
+    const secret = process.env.JWT_SECRET || 'changeme';
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, secret);
+      if (payload.type !== 'refresh') throw new Error('Tipo inválido');
+    } catch (e) {
+      return res.status(401).json({ success: false, message: 'Refresh inválido o expirado' });
+    }
+    // verify exists in DB and not revoked
+    const q = await db.query('SELECT * FROM token_sesion WHERE refresh_token=$1 AND revoked=$2 LIMIT 1', [refreshToken, 'N']);
+    if (q.rows.length === 0) return res.status(401).json({ success: false, message: 'Refresh inválido' });
+
+    const userQ = await db.query('SELECT u.id_usuario, u.email, r.nombre as rol FROM usuario u JOIN rol r ON r.id_rol=u.id_rol WHERE u.id_usuario=$1', [q.rows[0].id_usuario]);
+    const user = userQ.rows[0];
+    const { token } = signTokens(user);
+    const exp = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    await db.query('UPDATE token_sesion SET token=$1, expires_at=$2 WHERE id_token_sesion=$3', [token, exp, q.rows[0].id_token_sesion]);
+    res.json({ success: true, token, expiresAt: exp.toISOString() });
+  } catch (err) {
+    console.error('[waylo][auth] refresh error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// POST /api/waylo/auth/logout
+async function logout(req, res) {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith('Bearer ')) return res.status(400).json({ success: false, message: 'Token requerido' });
+    const token = auth.split(' ')[1];
+    await db.query("UPDATE token_sesion SET revoked='S' WHERE token=$1", [token]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[waylo][auth] logout error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { registrarCliente, registrarGuia, login, refreshToken, logout };
