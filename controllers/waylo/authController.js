@@ -222,6 +222,41 @@ async function login(req, res) {
     }
 
     const user = q.rows[0];
+    
+    // Validar que el usuario esté activo
+    if (user.estado !== 'A') {
+      recordLoginAttempt(email, ip, false);
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Tu cuenta ha sido desactivada. Por favor contacta con el administrador.',
+        code: 'ACCOUNT_INACTIVE'
+      });
+    }
+
+    // Si es guía, validar que esté verificado
+    if (user.rol && user.rol.toLowerCase() === 'guia') {
+      const perfilGuia = await db.query('SELECT verificacion_estado FROM perfil_guia WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
+      if (perfilGuia.rows.length > 0) {
+        const verificacionEstado = perfilGuia.rows[0].verificacion_estado;
+        if (verificacionEstado === 'rechazado') {
+          recordLoginAttempt(email, ip, false);
+          return res.status(403).json({ 
+            success: false, 
+            message: 'Tu verificación como guía ha sido rechazada. Por favor contacta con el administrador.',
+            code: 'VERIFICATION_REJECTED'
+          });
+        }
+        if (verificacionEstado !== 'aprobado') {
+          recordLoginAttempt(email, ip, false);
+          return res.status(403).json({ 
+            success: false, 
+            message: 'Tu cuenta está pendiente de verificación. Recibirás un correo cuando sea aprobada.',
+            code: 'VERIFICATION_PENDING'
+          });
+        }
+      }
+    }
+
     delete user.contrasena;
     const { token, refresh } = signTokens(user);
     // persist session

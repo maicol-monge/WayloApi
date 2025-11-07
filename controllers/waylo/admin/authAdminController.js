@@ -15,7 +15,18 @@ async function loginAdmin(req, res) {
     const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, r.nombre as rol
                               FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
                               WHERE LOWER(u.email)=LOWER($1) AND u.estado='A'`, [email]);
-    if (q.rows.length === 0) return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    if (q.rows.length === 0) {
+      // Verificar si el usuario existe pero está inactivo
+      const inactiveUser = await db.query(`SELECT u.estado FROM usuario u WHERE LOWER(u.email)=LOWER($1)`, [email]);
+      if (inactiveUser.rows.length > 0 && inactiveUser.rows[0].estado !== 'A') {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Tu cuenta de administrador ha sido desactivada. Contacta con el super administrador.',
+          code: 'ACCOUNT_INACTIVE'
+        });
+      }
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    }
     const user = q.rows[0];
     if ((user.rol || '').toLowerCase() !== 'admin') return res.status(403).json({ success: false, message: 'Acceso restringido: no es administrador' });
 
