@@ -91,7 +91,14 @@ async function setVerification(req, res) {
     const { id } = req.params; // id_perfil_guia
     const { verificacion_estado, reviewed_by } = req.body; // 'aprobado'|'rechazado'|'pendiente'
     if (!verificacion_estado) return res.status(400).json({ success: false, message: 'verificacion_estado requerido' });
-    const up = await db.query('UPDATE perfil_guia SET verificacion_estado=$1, updated_at=NOW() WHERE id_perfil_guia=$2 RETURNING *', [verificacion_estado, id]);
+    // Nota: la tabla perfil_guia no tiene columna updated_at en el schema actual, removerla evita error 500
+    let up;
+    try {
+      up = await db.query('UPDATE perfil_guia SET verificacion_estado=$1 WHERE id_perfil_guia=$2 RETURNING *', [verificacion_estado, id]);
+    } catch (dbErr) {
+      console.error('[admin][guias] setVerification DB error:', dbErr.message);
+      return res.status(500).json({ success: false, message: 'Error al actualizar verificación', detail: dbErr.message });
+    }
     if (up.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
     
     // Optionally update pending documents to approved when approving
