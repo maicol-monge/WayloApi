@@ -44,7 +44,7 @@ async function getGuia(req, res) {
         if (signed.success) q.rows[0].imagen_perfil_url = signed.signedUrl;
       } catch (e) {}
     }
-    const docs = await db.query('SELECT * FROM documentos_guia WHERE id_perfil_guia=$1 ORDER BY id_documento_guia DESC', [id]);
+  const docs = await db.query('SELECT * FROM documentos_guia WHERE id_perfil_guia=$1 ORDER BY id_documento_guia DESC', [id]);
     const fotos = await db.query('SELECT * FROM fotos_guia WHERE id_perfil_guia=$1 ORDER BY created_at DESC', [id]);
     const fotosRows = await Promise.all(fotos.rows.map(async (f) => {
       if (f.foto_url) {
@@ -55,7 +55,21 @@ async function getGuia(req, res) {
       }
       return f;
     }));
-    res.json({ success: true, data: { perfil: q.rows[0], documentos: docs.rows, fotos: fotosRows } });
+    // Firmar URLs de documentos (archivo_url) y normalizar nombres para el panel
+    const documentosRows = await Promise.all((docs.rows || []).map(async (d) => {
+      if (d.archivo_url) {
+        try {
+          const signed = await obtenerUrlPublica(d.archivo_url, 1800);
+          if (signed.success) d.documento_url_signed = signed.signedUrl;
+        } catch (e) {}
+        d.documento_url = d.archivo_url;
+        d.url = d.archivo_url;
+      }
+      if (!d.estado_documento && d.estado) d.estado_documento = d.estado;
+      return d;
+    }));
+
+    res.json({ success: true, data: { perfil: q.rows[0], documentos: documentosRows, fotos: fotosRows } });
   } catch (err) {
     console.error('[admin][guias] get error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -106,14 +120,38 @@ async function listDocumentos(req, res) {
         'SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE d.estado=$1 ORDER BY d.id_documento_guia DESC LIMIT $2 OFFSET $3',
         [estado, Number(pageSize), offset]
       );
-      res.json({ success: true, data: q.rows });
+      const rows = await Promise.all(q.rows.map(async (d) => {
+        if (d.archivo_url) {
+          try {
+            const signed = await obtenerUrlPublica(d.archivo_url, 1800);
+            if (signed.success) d.documento_url_signed = signed.signedUrl;
+          } catch (e) {}
+          d.documento_url = d.archivo_url;
+          d.url = d.archivo_url;
+        }
+        if (!d.estado_documento && d.estado) d.estado_documento = d.estado;
+        return d;
+      }));
+      res.json({ success: true, data: rows });
     } catch (dbErr) {
       console.warn('[admin][documentos] fallback list:', dbErr.message);
       const q = await db.query(
         'SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario ORDER BY d.id_documento_guia DESC LIMIT $1 OFFSET $2',
         [Number(pageSize), offset]
       );
-      res.json({ success: true, data: q.rows, warning: 'Using fallback order' });
+      const rows = await Promise.all(q.rows.map(async (d) => {
+        if (d.archivo_url) {
+          try {
+            const signed = await obtenerUrlPublica(d.archivo_url, 1800);
+            if (signed.success) d.documento_url_signed = signed.signedUrl;
+          } catch (e) {}
+          d.documento_url = d.archivo_url;
+          d.url = d.archivo_url;
+        }
+        if (!d.estado_documento && d.estado) d.estado_documento = d.estado;
+        return d;
+      }));
+      res.json({ success: true, data: rows, warning: 'Using fallback order' });
     }
   } catch (err) {
     console.error('[admin][documentos] list error:', err);
