@@ -1,4 +1,5 @@
 const { db } = require('../../config/db');
+const { obtenerUrlPublica } = require('../../services/imageService');
 
 // GET /api/waylo/clientes/:id
 async function obtenerCliente(req, res) {
@@ -6,7 +7,12 @@ async function obtenerCliente(req, res) {
     const { id } = req.params;
     const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_perfil_cliente=$1`, [id]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
-    res.json({ success: true, data: q.rows[0] });
+    const row = q.rows[0];
+    if (row.imagen_perfil) {
+      const signed = await obtenerUrlPublica(row.imagen_perfil, 3600);
+      if (signed.success) row.imagen_perfil_url = signed.signedUrl;
+    }
+    res.json({ success: true, data: row });
   } catch (err) {
     console.error('[waylo][clientes] obtener error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -19,7 +25,12 @@ async function obtenerClientePorUsuario(req, res) {
     const { id_usuario } = req.params;
     const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_usuario=$1`, [id_usuario]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
-    res.json({ success: true, data: q.rows[0] });
+    const row = q.rows[0];
+    if (row.imagen_perfil) {
+      const signed = await obtenerUrlPublica(row.imagen_perfil, 3600);
+      if (signed.success) row.imagen_perfil_url = signed.signedUrl;
+    }
+    res.json({ success: true, data: row });
   } catch (err) {
     console.error('[waylo][clientes] obtener por usuario error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
