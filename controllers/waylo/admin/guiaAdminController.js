@@ -69,7 +69,16 @@ async function getGuia(req, res) {
       return d;
     }));
 
-    res.json({ success: true, data: { perfil: q.rows[0], documentos: documentosRows, fotos: fotosRows } });
+    // Idiomas del guía
+    let idiomas = [];
+    try {
+      const idi = await db.query('SELECT id_idioma, nombre, nivel FROM idiomas WHERE id_usuario=$1 ORDER BY id_idioma', [q.rows[0].id_usuario]);
+      idiomas = idi.rows;
+    } catch (e) {
+      idiomas = [];
+    }
+
+    res.json({ success: true, data: { perfil: q.rows[0], documentos: documentosRows, fotos: fotosRows, idiomas } });
   } catch (err) {
     console.error('[admin][guias] get error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });

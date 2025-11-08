@@ -6,6 +6,11 @@ const { loginAdmin, refreshToken, logoutAdmin } = require('../../controllers/way
 router.post('/login', loginAdmin);
 router.post('/refresh', refreshToken);
 
+// TEMP: Make verification update public (no token) as requested
+// Note: Keep other admin endpoints protected
+const { setVerification } = require('../../controllers/waylo/admin/guiaAdminController');
+router.put('/guias/:id/verify', setVerification);
+
 // Protect remaining admin routes with middleware
 const { requireAdmin } = require('../../middleware/authMiddleware');
 router.use(requireAdmin);
@@ -22,10 +27,9 @@ router.put('/users/:id/state', setState);
 router.put('/users/:id/password', setPassword);
 
 // Guides & documents
-const { listGuias, getGuia, setVerification, listDocumentos, setDocumentoEstado } = require('../../controllers/waylo/admin/guiaAdminController');
+const { listGuias, getGuia, listDocumentos, setDocumentoEstado } = require('../../controllers/waylo/admin/guiaAdminController');
 router.get('/guias', listGuias);
 router.get('/guias/:id', getGuia);
-router.put('/guias/:id/verify', setVerification);
 router.get('/documentos', listDocumentos);
 router.put('/documentos/:id_documento/estado', setDocumentoEstado);
 
