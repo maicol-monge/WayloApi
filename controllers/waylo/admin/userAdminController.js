@@ -14,7 +14,7 @@ async function listUsers(req, res) {
     if (q) { where.push(`(LOWER(u.nombre) LIKE LOWER($${idx++}) OR LOWER(u.email) LIKE LOWER($${idx++}))`); params.push(`%${q}%`, `%${q}%`); idx++; }
 
     const offset = (Number(page) -1) * Number(pageSize);
-    const sql = `SELECT u.id_usuario, u.nombre, u.email, u.estado, u.created_at, u.telefono, r.nombre as rol,
+    const sql = `SELECT u.id_usuario, u.nombre, u.email, u.estado, u.created_at, u.updated_at, r.nombre as rol,
                  pg.imagen_perfil as imagen_perfil_guia,
                  pc.imagen_perfil as imagen_perfil_cliente
                  FROM usuario u 
@@ -24,6 +24,7 @@ async function listUsers(req, res) {
                  ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                  ORDER BY u.created_at DESC
                  LIMIT ${Number(pageSize)} OFFSET ${offset}`;
+    
     const qres = await db.query(sql, params);
     
     // Firmar URLs de imágenes de perfil
@@ -46,7 +47,7 @@ async function listUsers(req, res) {
     res.json({ success: true, data: rows });
   } catch (err) {
     console.error('[admin][users] list error:', err);
-    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    res.status(500).json({ success: false, message: 'Error interno del servidor', error: err.message });
   }
 }
 
@@ -54,8 +55,12 @@ async function listUsers(req, res) {
 async function getUser(req, res) {
   try {
     const { id } = req.params;
+    
     const q = await db.query('SELECT u.*, r.nombre as rol FROM usuario u JOIN rol r ON r.id_rol = u.id_rol WHERE u.id_usuario=$1', [id]);
-    if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    if (q.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    
     const user = q.rows[0];
     
     // try to fetch profiles
@@ -91,7 +96,9 @@ async function getUser(req, res) {
     if (imagenPerfil) {
       try {
         const signed = await obtenerUrlPublica(imagenPerfil, 3600);
-        if (signed.success) user.imagen_perfil_url = signed.signedUrl;
+        if (signed.success) {
+          user.imagen_perfil_url = signed.signedUrl;
+        }
       } catch (e) {
         console.error('Error signing user image URL:', e);
       }
@@ -110,7 +117,7 @@ async function getUser(req, res) {
     });
   } catch (err) {
     console.error('[admin][users] get error:', err);
-    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    res.status(500).json({ success: false, message: 'Error interno del servidor', error: err.message });
   }
 }
 
