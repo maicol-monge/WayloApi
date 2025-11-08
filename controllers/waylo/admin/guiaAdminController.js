@@ -76,16 +76,19 @@ async function listDocumentos(req, res) {
   try {
     const { estado = 'pendiente', page = 1, pageSize = 50 } = req.query;
     const offset = (Number(page)-1)*Number(pageSize);
-    
-    // Check if estado column exists, otherwise return empty or all documents
     try {
-      const q = await db.query('SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE d.estado=$1 ORDER BY d.created_at DESC LIMIT $2 OFFSET $3', [estado, Number(pageSize), offset]);
+      const q = await db.query(
+        'SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE d.estado=$1 ORDER BY d.id_documento_guia DESC LIMIT $2 OFFSET $3',
+        [estado, Number(pageSize), offset]
+      );
       res.json({ success: true, data: q.rows });
     } catch (dbErr) {
-      // If estado column doesn't exist, return all documents
-      console.warn('[admin][documentos] estado column may not exist, returning all documents:', dbErr.message);
-      const q = await db.query('SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario ORDER BY d.created_at DESC LIMIT $1 OFFSET $2', [Number(pageSize), offset]);
-      res.json({ success: true, data: q.rows, warning: 'Column "estado" not found - run migration' });
+      console.warn('[admin][documentos] fallback list:', dbErr.message);
+      const q = await db.query(
+        'SELECT d.*, pg.id_perfil_guia, u.nombre as guia_nombre FROM documentos_guia d JOIN perfil_guia pg ON pg.id_perfil_guia=d.id_perfil_guia JOIN usuario u ON u.id_usuario=pg.id_usuario ORDER BY d.id_documento_guia DESC LIMIT $1 OFFSET $2',
+        [Number(pageSize), offset]
+      );
+      res.json({ success: true, data: q.rows, warning: 'Using fallback order' });
     }
   } catch (err) {
     console.error('[admin][documentos] list error:', err);

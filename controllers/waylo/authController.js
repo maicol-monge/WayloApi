@@ -238,6 +238,8 @@ async function login(req, res) {
       const perfilGuia = await db.query('SELECT verificacion_estado FROM perfil_guia WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
       if (perfilGuia.rows.length > 0) {
         const verificacionEstado = perfilGuia.rows[0].verificacion_estado;
+        
+        // Solo bloquear si está explícitamente rechazado
         if (verificacionEstado === 'rechazado') {
           recordLoginAttempt(email, ip, false);
           return res.status(403).json({ 
@@ -246,13 +248,11 @@ async function login(req, res) {
             code: 'VERIFICATION_REJECTED'
           });
         }
+        
+        // Permitir login pero informar si está pendiente
         if (verificacionEstado !== 'aprobado') {
-          recordLoginAttempt(email, ip, false);
-          return res.status(403).json({ 
-            success: false, 
-            message: 'Tu cuenta está pendiente de verificación. Recibirás un correo cuando sea aprobada.',
-            code: 'VERIFICATION_PENDING'
-          });
+          console.log(`⚠️ Guía ${user.email} iniciando sesión con verificación pendiente`);
+          // No bloqueamos el login, solo registramos
         }
       }
     }
@@ -263,18 +263,37 @@ async function login(req, res) {
     const exp = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8h
     await db.query('INSERT INTO token_sesion (id_usuario, token, refresh_token, expires_at) VALUES ($1,$2,$3,$4)', [user.id_usuario, token, refresh, exp]);
     recordLoginAttempt(email, ip, true);
+    
     // optional: attach perfil summary
     let perfil = null;
     try {
       if (user.rol && user.rol.toLowerCase() === 'guia') {
+        console.log(`🔍 Obteniendo perfil de guía para usuario ${user.id_usuario}`);
         const pg = await db.query('SELECT * FROM perfil_guia WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
-        if (pg.rows.length) perfil = { tipo: 'guia', ...pg.rows[0] };
+        if (pg.rows.length) {
+          perfil = { tipo: 'guia', ...pg.rows[0] };
+          console.log(`✅ Perfil de guía encontrado: ID ${pg.rows[0].id_perfil_guia}`);
+        } else {
+          console.log(`⚠️ No se encontró perfil de guía para usuario ${user.id_usuario}`);
+        }
       } else if (user.rol && user.rol.toLowerCase() === 'cliente') {
+        console.log(`🔍 Obteniendo perfil de cliente para usuario ${user.id_usuario}`);
         const pc = await db.query('SELECT * FROM perfil_cliente WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
-        if (pc.rows.length) perfil = { tipo: 'cliente', ...pc.rows[0] };
+        if (pc.rows.length) {
+          perfil = { tipo: 'cliente', ...pc.rows[0] };
+          console.log(`✅ Perfil de cliente encontrado: ID ${pc.rows[0].id_perfil_cliente}`);
+        } else {
+          console.log(`⚠️ No se encontró perfil de cliente para usuario ${user.id_usuario}`);
+        }
       }
-    } catch (_) { /* ignore perfil attach errors */ }
+    } catch (err) {
+      console.error('❌ Error al obtener perfil:', err);
+      /* ignore perfil attach errors */
+    }
 
+    console.log(`📤 Enviando respuesta de login para ${user.email} (rol: ${user.rol})`);
+    console.log(`   - Perfil incluido: ${perfil ? 'SÍ (tipo: ' + perfil.tipo + ')' : 'NO'}`);
+    
     return res.json({ success: true, data: user, perfil, token, refreshToken: refresh, expiresAt: exp.toISOString() });
   } catch (err) {
     console.error('[waylo][auth] login error:', err);
