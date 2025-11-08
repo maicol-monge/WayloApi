@@ -1,4 +1,5 @@
 const { db } = require('../../config/db');
+const { obtenerUrlPublica } = require('../../services/imageService');
 
 // GET /api/waylo/guias
 async function listarGuias(req, res) {
@@ -40,7 +41,17 @@ async function listarGuias(req, res) {
     `;
 
     const qres = await db.query(sql, params);
-    res.json({ success: true, data: qres.rows });
+    // Firmar URL de imagen_perfil si existe (bucket privado)
+    const rows = await Promise.all(qres.rows.map(async (row) => {
+      if (row.imagen_perfil) {
+        try {
+          const signed = await obtenerUrlPublica(row.imagen_perfil, 3600);
+          if (signed.success) row.imagen_perfil_url = signed.signedUrl;
+        } catch (e) {}
+      }
+      return row;
+    }));
+    res.json({ success: true, data: rows });
   } catch (err) {
     console.error('[waylo][guias] listar error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -53,16 +64,32 @@ async function obtenerGuia(req, res) {
     const { id } = req.params;
     const q = await db.query(`SELECT pg.*, u.nombre, u.email FROM perfil_guia pg JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE pg.id_perfil_guia=$1`, [id]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
-
+    // firmar imagen de perfil
+    if (q.rows[0].imagen_perfil) {
+      try {
+        const signed = await obtenerUrlPublica(q.rows[0].imagen_perfil, 3600);
+        if (signed.success) q.rows[0].imagen_perfil_url = signed.signedUrl;
+      } catch (e) {}
+    }
     // fotos
     const fotos = await db.query(`SELECT id_foto_guia, foto_url, descripcion, aprobado FROM fotos_guia WHERE id_perfil_guia=$1 AND estado='A' ORDER BY created_at DESC`, [id]);
+    // firmar fotos
+    const fotosRows = await Promise.all(fotos.rows.map(async (f) => {
+      if (f.foto_url) {
+        try {
+          const signed = await obtenerUrlPublica(f.foto_url, 3600);
+          if (signed.success) f.foto_url_signed = signed.signedUrl;
+        } catch (e) {}
+      }
+      return f;
+    }));
     // resenas
     const resenas = await db.query(`SELECT r.*, pc.id_perfil_cliente FROM resena r LEFT JOIN perfil_cliente pc ON pc.id_perfil_cliente = r.id_perfil_cliente WHERE r.id_perfil_guia=$1 ORDER BY created_at DESC`, [id]);
     // idiomas del guía (por id_usuario)
     const id_usuario = q.rows[0].id_usuario;
     const idiomas = await db.query('SELECT id_idioma, nombre, nivel FROM idiomas WHERE id_usuario=$1 ORDER BY id_idioma', [id_usuario]);
 
-    res.json({ success: true, data: { perfil: q.rows[0], fotos: fotos.rows, resenas: resenas.rows, idiomas: idiomas.rows } });
+  res.json({ success: true, data: { perfil: q.rows[0], fotos: fotosRows, resenas: resenas.rows, idiomas: idiomas.rows } });
   } catch (err) {
     console.error('[waylo][guias] obtener error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });

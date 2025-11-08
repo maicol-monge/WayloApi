@@ -156,6 +156,10 @@ async function registrarCliente(req, res) {
 async function registrarGuia(req, res) {
   try {
     let { nombre, email, contrasena, descripcion, idiomas = [], ciudad, pais, anios_experiencia, precio_hora, precio_dia_personalizado } = req.body;
+    // permitir que 'idiomas' llegue como JSON string desde multipart
+    if (typeof idiomas === 'string') {
+      try { idiomas = JSON.parse(idiomas) } catch (e) { idiomas = [] }
+    }
     // normalizar entradas
     if (typeof email === 'string') email = email.trim().toLowerCase();
     if (typeof nombre === 'string') nombre = nombre.trim();

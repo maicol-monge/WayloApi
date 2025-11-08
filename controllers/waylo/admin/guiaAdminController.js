@@ -1,5 +1,6 @@
 const { db } = require('../../../config/db');
 const { sendPasswordResetEmail } = require('../../../services/emailService');
+const { obtenerUrlPublica } = require('../../../services/imageService');
 
 // GET /api/waylo/admin/guias
 async function listGuias(req, res) {
@@ -15,7 +16,16 @@ async function listGuias(req, res) {
                  ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                  ORDER BY pg.created_at DESC LIMIT ${Number(pageSize)} OFFSET ${offset}`;
     const qres = await db.query(sql, params);
-    res.json({ success: true, data: qres.rows });
+    const rows = await Promise.all(qres.rows.map(async (row) => {
+      if (row.imagen_perfil) {
+        try {
+          const signed = await obtenerUrlPublica(row.imagen_perfil, 1800);
+          if (signed.success) row.imagen_perfil_url = signed.signedUrl;
+        } catch (e) {}
+      }
+      return row;
+    }));
+    res.json({ success: true, data: rows });
   } catch (err) {
     console.error('[admin][guias] list error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -28,9 +38,24 @@ async function getGuia(req, res) {
     const { id } = req.params;
     const q = await db.query('SELECT pg.*, u.nombre, u.email FROM perfil_guia pg JOIN usuario u ON u.id_usuario = pg.id_usuario WHERE pg.id_perfil_guia=$1', [id]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Guía no encontrada' });
+    if (q.rows[0].imagen_perfil) {
+      try {
+        const signed = await obtenerUrlPublica(q.rows[0].imagen_perfil, 1800);
+        if (signed.success) q.rows[0].imagen_perfil_url = signed.signedUrl;
+      } catch (e) {}
+    }
     const docs = await db.query('SELECT * FROM documentos_guia WHERE id_perfil_guia=$1 ORDER BY id_documento_guia DESC', [id]);
     const fotos = await db.query('SELECT * FROM fotos_guia WHERE id_perfil_guia=$1 ORDER BY created_at DESC', [id]);
-    res.json({ success: true, data: { perfil: q.rows[0], documentos: docs.rows, fotos: fotos.rows } });
+    const fotosRows = await Promise.all(fotos.rows.map(async (f) => {
+      if (f.foto_url) {
+        try {
+          const signed = await obtenerUrlPublica(f.foto_url, 1800);
+          if (signed.success) f.foto_url_signed = signed.signedUrl;
+        } catch (e) {}
+      }
+      return f;
+    }));
+    res.json({ success: true, data: { perfil: q.rows[0], documentos: docs.rows, fotos: fotosRows } });
   } catch (err) {
     console.error('[admin][guias] get error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
