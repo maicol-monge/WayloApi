@@ -13,7 +13,8 @@ async function subirDocumento(req, res) {
     const { tipo_documento = 'ID' } = req.body;
     if (!req.file) return res.status(400).json({ success: false, message: 'Archivo requerido (campo file)' });
 
-    // Guardar en carpeta 'documentos' dentro del bucket
+    console.log(`[documentos] subida perfil=${id_perfil_guia} tipo=${tipo_documento} original=${req.file.originalname} size=${req.file.size}B`);
+
     const result = await subirImagen(req.file.buffer, req.file.originalname, 'documentos');
     if (!result.success) return res.status(500).json({ success: false, message: result.error });
 
