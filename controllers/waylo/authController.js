@@ -108,18 +108,19 @@ async function registrarCliente(req, res) {
       [nombre, email, hash, idRol]
     );
 
-    // Validar y subir imagen_perfil si viene archivo
+    // Subir imagen_perfil opcional (modo tolerante: si falla, continúa sin imagen)
     let imagenPerfilPath = null;
     if (req.file) {
-      // Validación estricta de tipo/tamaño antes de subir
-      const { validarImagen } = require('../../services/imageService');
-      const validacion = validarImagen(req.file.originalname, req.file.size);
-      if (!validacion.valid) {
-        return res.status(400).json({ success: false, message: validacion.error });
-      }
-      imagenPerfilPath = await maybeUploadProfile(req.file);
-      if (!imagenPerfilPath) {
-        return res.status(400).json({ success: false, message: 'Error al subir imagen de perfil' });
+      try {
+        const { validarImagen } = require('../../services/imageService');
+        const validacion = validarImagen(req.file.originalname, req.file.size);
+        if (validacion.valid) {
+          imagenPerfilPath = await maybeUploadProfile(req.file);
+        } else {
+          console.warn('[waylo][auth] registrarCliente imagen inválida:', validacion.error);
+        }
+      } catch (e) {
+        console.warn('[waylo][auth] registrarCliente error subiendo imagen (continuamos sin imagen):', e.message);
       }
     }
 
@@ -173,14 +174,16 @@ async function registrarGuia(req, res) {
 
     let imagenPerfilPath = null;
     if (req.file) {
-      const { validarImagen } = require('../../services/imageService');
-      const validacion = validarImagen(req.file.originalname, req.file.size);
-      if (!validacion.valid) {
-        return res.status(400).json({ success: false, message: validacion.error });
-      }
-      imagenPerfilPath = await maybeUploadProfile(req.file);
-      if (!imagenPerfilPath) {
-        return res.status(400).json({ success: false, message: 'Error al subir imagen de perfil' });
+      try {
+        const { validarImagen } = require('../../services/imageService');
+        const validacion = validarImagen(req.file.originalname, req.file.size);
+        if (validacion.valid) {
+          imagenPerfilPath = await maybeUploadProfile(req.file);
+        } else {
+          console.warn('[waylo][auth] registrarGuia imagen inválida:', validacion.error);
+        }
+      } catch (e) {
+        console.warn('[waylo][auth] registrarGuia error subiendo imagen (continuamos sin imagen):', e.message);
       }
     }
 
