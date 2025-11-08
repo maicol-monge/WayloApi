@@ -11,7 +11,7 @@ const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const LOCK_MS = 15 * 60 * 1000; // lock for 15 minutes
 
 function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
 function isStrongPassword(pw) {
@@ -85,7 +85,14 @@ async function getRolId(nombre) {
 // POST /api/waylo/auth/registro/cliente
 async function registrarCliente(req, res) {
   try {
-    const { nombre, email, contrasena, descripcion, pais, ciudad } = req.body;
+    let { nombre, email, contrasena, descripcion, pais, ciudad } = req.body;
+    // normalizar entradas
+    if (typeof email === 'string') email = email.trim().toLowerCase();
+    if (typeof nombre === 'string') nombre = nombre.trim();
+    if (typeof contrasena === 'string') contrasena = contrasena.trim();
+    if (typeof descripcion === 'string') descripcion = descripcion.trim();
+    if (typeof pais === 'string') pais = pais.trim();
+    if (typeof ciudad === 'string') ciudad = ciudad.trim();
     if (!nombre || !email || !contrasena) {
       return res.status(400).json({ success: false, message: 'nombre, email y contrasena son requeridos' });
     }
@@ -148,7 +155,14 @@ async function registrarCliente(req, res) {
 // POST /api/waylo/auth/registro/guia
 async function registrarGuia(req, res) {
   try {
-    const { nombre, email, contrasena, descripcion, idiomas = [], ciudad, pais, anios_experiencia, precio_hora, precio_dia_personalizado } = req.body;
+    let { nombre, email, contrasena, descripcion, idiomas = [], ciudad, pais, anios_experiencia, precio_hora, precio_dia_personalizado } = req.body;
+    // normalizar entradas
+    if (typeof email === 'string') email = email.trim().toLowerCase();
+    if (typeof nombre === 'string') nombre = nombre.trim();
+    if (typeof contrasena === 'string') contrasena = contrasena.trim();
+    if (typeof descripcion === 'string') descripcion = descripcion.trim();
+    if (typeof pais === 'string') pais = pais.trim();
+    if (typeof ciudad === 'string') ciudad = ciudad.trim();
     if (!nombre || !email || !contrasena) {
       return res.status(400).json({ success: false, message: 'nombre, email y contrasena son requeridos' });
     }
@@ -228,7 +242,9 @@ async function registrarGuia(req, res) {
 // POST /api/waylo/auth/login
 async function login(req, res) {
   try {
-    const { email, contrasena } = req.body;
+    let { email, contrasena } = req.body;
+    if (typeof email === 'string') email = email.trim().toLowerCase();
+    if (typeof contrasena === 'string') contrasena = contrasena.trim();
     if (!email || !contrasena) return res.status(400).json({ success: false, message: 'email y contrasena son requeridos' });
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (isLocked(email, ip)) return res.status(429).json({ success: false, message: 'Demasiados intentos fallidos. Intenta más tarde.' });
