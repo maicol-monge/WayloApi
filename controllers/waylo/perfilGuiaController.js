@@ -4,7 +4,7 @@ const { db } = require('../../config/db');
 async function listarGuias(req, res) {
   try {
     const { ciudad, idioma, precio_min, precio_max, rating_min, q, page = 1, pageSize = 20 } = req.query;
-    const where = ["pg.estado='A'"];
+  const where = ["pg.estado='A'", "COALESCE(pg.verificacion_estado,'pendiente') = 'aprobado'"];
     const params = [];
     let idx = 1;
 
