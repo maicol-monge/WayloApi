@@ -44,7 +44,7 @@ async function listarPorGuia(req, res) {
   try {
     const { id_perfil_guia } = req.params;
     const q = await db.query(`
-      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente
+      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente, r.lugar, r.personas, r.fecha_reserva, r.hora_inicio, r.hora_fin
       FROM transaccion t
       JOIN reservas r ON r.id_reserva = t.id_reserva
       WHERE r.id_perfil_guia = $1

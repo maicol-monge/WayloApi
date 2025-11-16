@@ -26,6 +26,7 @@ const wayloPoliticaRoutes = require("./routes/waylo/politicaRoutes");
 const wayloReembolsoRoutes = require("./routes/waylo/reembolsoRoutes");
 const wayloFacturaRoutes = require("./routes/waylo/facturaRoutes");
 const wayloRespuestaResenaRoutes = require("./routes/waylo/respuestaResenaRoutes");
+const wayloHomeRoutes = require("./routes/waylo/homeRoutes");
 
 const app = express(); //Instancia del servidor
 const server = http.createServer(app); // Servidor HTTP
@@ -85,6 +86,7 @@ app.use("/api/waylo/politicas", wayloPoliticaRoutes);
 app.use("/api/waylo/reembolsos", wayloReembolsoRoutes);
 app.use("/api/waylo/facturas", wayloFacturaRoutes);
 app.use("/api/waylo/respuestas", wayloRespuestaResenaRoutes);
+app.use("/api/waylo/home", wayloHomeRoutes);
 
 // Ruta de estado de la API
 app.get("/api/status", (req, res) => {
