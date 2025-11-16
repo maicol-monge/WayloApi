@@ -179,7 +179,10 @@ async function agregarIdioma(req, res) {
     const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
     if (perfilQ.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
     if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
-    const ins = await db.query('INSERT INTO idiomas (id_usuario, nombre, nivel) VALUES ($1,$2,$3) RETURNING id_idioma, nombre, nivel', [perfilQ.rows[0].id_usuario, nombre, nivel]);
+    const nivelNorm = String(nivel).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const allowed = ['nativo','avanzado','intermedio','basico'];
+    if (!allowed.includes(nivelNorm)) return res.status(400).json({ success: false, message: `Nivel inválido. Permitidos: ${allowed.join(', ')}` });
+    const ins = await db.query('INSERT INTO idiomas (id_usuario, nombre, nivel) VALUES ($1,$2,$3) RETURNING id_idioma, nombre, nivel', [perfilQ.rows[0].id_usuario, nombre, nivelNorm]);
     res.json({ success: true, data: ins.rows[0] });
   } catch (err) {
     console.error('[waylo][guias] agregarIdioma error:', err);
@@ -198,7 +201,12 @@ async function actualizarIdioma(req, res) {
     if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
     const fields = []; const params = []; let idx = 1;
     if (nombre) { fields.push(`nombre=$${idx++}`); params.push(nombre); }
-    if (nivel) { fields.push(`nivel=$${idx++}`); params.push(nivel); }
+    if (nivel) {
+      const nivelNorm = String(nivel).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const allowed = ['nativo','avanzado','intermedio','basico'];
+      if (!allowed.includes(nivelNorm)) return res.status(400).json({ success: false, message: `Nivel inválido. Permitidos: ${allowed.join(', ')}` });
+      fields.push(`nivel=$${idx++}`); params.push(nivelNorm);
+    }
     params.push(id_idioma, perfilQ.rows[0].id_usuario);
     const up = await db.query(`UPDATE idiomas SET ${fields.join(', ')} WHERE id_idioma=$${idx++} AND id_usuario=$${idx} RETURNING id_idioma, nombre, nivel`, params);
     if (!up.rows.length) return res.status(404).json({ success: false, message: 'Idioma no encontrado' });
