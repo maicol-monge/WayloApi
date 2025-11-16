@@ -1,5 +1,5 @@
 const { db } = require('../../config/db');
-const { obtenerUrlPublica } = require('../../services/imageService');
+const { obtenerUrlPublica, subirImagen } = require('../../services/imageService');
 
 // GET /api/waylo/guias
 async function listarGuias(req, res) {
@@ -126,4 +126,40 @@ async function actualizarGuia(req, res) {
   }
 }
 
-module.exports = { listarGuias, obtenerGuia, actualizarGuia };
+// POST /api/waylo/guias/:id/avatar (multipart) -> actualiza imagen_perfil
+async function actualizarGuiaAvatar(req, res) {
+  try {
+    const { id } = req.params;
+    // validar perfil existe y pertenece a usuario autenticado (opcional)
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario, imagen_perfil FROM perfil_guia WHERE id_perfil_guia=$1 LIMIT 1', [id]);
+    if (perfilQ.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    // opcional: comprobar ownership
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+    if (!req.file) return res.status(400).json({ success: false, message: 'Archivo requerido' });
+    const lower = (req.file.originalname || '').toLowerCase();
+    if (!/\.(jpg|jpeg|png|webp)$/i.test(lower)) {
+      return res.status(400).json({ success: false, message: 'Formato de imagen inválido' });
+    }
+    // subir nueva imagen
+    const upRes = await subirImagen(req.file.buffer, req.file.originalname, 'foto-perfil');
+    if (!upRes.success) return res.status(500).json({ success: false, message: 'Error subiendo imagen' });
+    const path = upRes.data.path;
+    const updated = await db.query('UPDATE perfil_guia SET imagen_perfil=$1, updated_at=NOW() WHERE id_perfil_guia=$2 RETURNING *', [path, id]);
+    const perfil = updated.rows[0];
+    let imagen_perfil_url = null;
+    if (perfil.imagen_perfil) {
+      try {
+        const signed = await obtenerUrlPublica(perfil.imagen_perfil, 3600);
+        if (signed.success) imagen_perfil_url = signed.signedUrl;
+      } catch (e) {}
+    }
+    return res.json({ success: true, data: { ...perfil, imagen_perfil_url } });
+  } catch (err) {
+    console.error('[waylo][guias] avatar error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { listarGuias, obtenerGuia, actualizarGuia, actualizarGuiaAvatar };
