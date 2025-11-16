@@ -163,4 +163,104 @@ async function actualizarGuiaAvatar(req, res) {
   }
 }
 
-module.exports = { listarGuias, obtenerGuia, actualizarGuia, actualizarGuiaAvatar };
+// POST /api/waylo/guias/:id/idiomas -> agrega idioma al usuario dueño del perfil
+async function agregarIdioma(req, res) {
+  try {
+    const { id } = req.params; // id perfil_guia
+    const { nombre, nivel } = req.body;
+    if (!nombre || !nivel) return res.status(400).json({ success: false, message: 'nombre y nivel requeridos' });
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
+    if (perfilQ.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
+    const ins = await db.query('INSERT INTO idiomas (id_usuario, nombre, nivel) VALUES ($1,$2,$3) RETURNING id_idioma, nombre, nivel', [perfilQ.rows[0].id_usuario, nombre, nivel]);
+    res.json({ success: true, data: ins.rows[0] });
+  } catch (err) {
+    console.error('[waylo][guias] agregarIdioma error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// PUT /api/waylo/guias/:id/idiomas/:id_idioma -> actualiza idioma
+async function actualizarIdioma(req, res) {
+  try {
+    const { id, id_idioma } = req.params;
+    const { nombre, nivel } = req.body;
+    if (!nombre && !nivel) return res.status(400).json({ success: false, message: 'Sin campos para actualizar' });
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
+    if (perfilQ.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
+    const fields = []; const params = []; let idx = 1;
+    if (nombre) { fields.push(`nombre=$${idx++}`); params.push(nombre); }
+    if (nivel) { fields.push(`nivel=$${idx++}`); params.push(nivel); }
+    params.push(id_idioma, perfilQ.rows[0].id_usuario);
+    const up = await db.query(`UPDATE idiomas SET ${fields.join(', ')} WHERE id_idioma=$${idx++} AND id_usuario=$${idx} RETURNING id_idioma, nombre, nivel`, params);
+    if (!up.rows.length) return res.status(404).json({ success: false, message: 'Idioma no encontrado' });
+    res.json({ success: true, data: up.rows[0] });
+  } catch (err) {
+    console.error('[waylo][guias] actualizarIdioma error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// DELETE /api/waylo/guias/:id/idiomas/:id_idioma -> elimina idioma
+async function eliminarIdioma(req, res) {
+  try {
+    const { id, id_idioma } = req.params;
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
+    if (perfilQ.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
+    const del = await db.query('DELETE FROM idiomas WHERE id_idioma=$1 AND id_usuario=$2 RETURNING id_idioma', [id_idioma, perfilQ.rows[0].id_usuario]);
+    if (!del.rows.length) return res.status(404).json({ success: false, message: 'Idioma no encontrado' });
+    res.json({ success: true, data: { id_idioma } });
+  } catch (err) {
+    console.error('[waylo][guias] eliminarIdioma error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// POST /api/waylo/guias/:id/fotos (multipart) -> agrega foto galería
+async function subirFotoGuia(req, res) {
+  try {
+    const { id } = req.params; // perfil_guia
+    const { descripcion } = req.body;
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
+    if (!perfilQ.rows.length) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'Archivo requerido' });
+    const lower = (req.file.originalname || '').toLowerCase();
+    if (!/\.(jpg|jpeg|png|webp)$/i.test(lower)) return res.status(400).json({ success: false, message: 'Formato de imagen inválido' });
+    const upRes = await subirImagen(req.file.buffer, req.file.originalname, 'foto-guia');
+    if (!upRes.success) return res.status(500).json({ success: false, message: 'Error subiendo imagen' });
+    const path = upRes.data.path;
+    const ins = await db.query('INSERT INTO fotos_guia (id_perfil_guia, foto_url, descripcion, estado) VALUES ($1,$2,$3,\'A\') RETURNING *', [id, path, descripcion || null]);
+    let foto = ins.rows[0];
+    let signedUrl = null;
+    try {
+      const signed = await obtenerUrlPublica(foto.foto_url, 3600);
+      if (signed.success) signedUrl = signed.signedUrl;
+    } catch (e) {}
+    foto.foto_url_signed = signedUrl;
+    res.json({ success: true, data: { id_foto_guia: foto.id_foto_guia, foto_url_signed: signedUrl, descripcion: foto.descripcion, aprobado: foto.aprobado } });
+  } catch (err) {
+    console.error('[waylo][guias] subirFotoGuia error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// DELETE /api/waylo/guias/:id/fotos/:id_foto_guia -> elimina (soft) foto
+async function eliminarFotoGuia(req, res) {
+  try {
+    const { id, id_foto_guia } = req.params;
+    const perfilQ = await db.query('SELECT id_perfil_guia, id_usuario FROM perfil_guia WHERE id_perfil_guia=$1', [id]);
+    if (!perfilQ.rows.length) return res.status(404).json({ success: false, message: 'Perfil guía no encontrado' });
+    if (req.user && perfilQ.rows[0].id_usuario !== req.user.id_usuario) return res.status(403).json({ success: false, message: 'No autorizado' });
+    const up = await db.query("UPDATE fotos_guia SET estado='I' WHERE id_foto_guia=$1 AND id_perfil_guia=$2 RETURNING id_foto_guia", [id_foto_guia, id]);
+    if (!up.rows.length) return res.status(404).json({ success: false, message: 'Foto no encontrada' });
+    res.json({ success: true, data: { id_foto_guia } });
+  } catch (err) {
+    console.error('[waylo][guias] eliminarFotoGuia error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { listarGuias, obtenerGuia, actualizarGuia, actualizarGuiaAvatar, agregarIdioma, actualizarIdioma, eliminarIdioma, subirFotoGuia, eliminarFotoGuia };
