@@ -382,4 +382,66 @@ async function deactivateAccount(req, res) {
   }
 }
 
-module.exports = { registrarCliente, registrarGuia, login, refreshToken, logout, deactivateAccount };
+// PUT /api/waylo/auth/email
+async function updateEmail(req, res) {
+  try {
+    if (!req.user || !req.user.id_usuario) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+    let { newEmail } = req.body;
+    if (typeof newEmail === 'string') newEmail = newEmail.trim().toLowerCase();
+    if (!newEmail) {
+      return res.status(400).json({ success: false, message: 'newEmail requerido' });
+    }
+    if (!isValidEmail(newEmail)) {
+      return res.status(400).json({ success: false, message: 'Email inválido' });
+    }
+    // verificar duplicado
+    const exists = await db.query('SELECT 1 FROM usuario WHERE email=$1 AND id_usuario<>$2', [newEmail, req.user.id_usuario]);
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ success: false, message: 'Email ya registrado' });
+    }
+    const up = await db.query('UPDATE usuario SET email=$1, updated_at=NOW() WHERE id_usuario=$2 RETURNING id_usuario, nombre, email', [newEmail, req.user.id_usuario]);
+    if (up.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    return res.json({ success: true, data: up.rows[0], message: 'Email actualizado' });
+  } catch (err) {
+    console.error('[waylo][auth] updateEmail error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// POST /api/waylo/auth/password/change (autenticado)
+async function changePassword(req, res) {
+  try {
+    if (!req.user || !req.user.id_usuario) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+    let { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword === 'string') currentPassword = currentPassword.trim();
+    if (typeof newPassword === 'string') newPassword = newPassword.trim();
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'currentPassword y newPassword son requeridos' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+    const q = await db.query('SELECT contrasena FROM usuario WHERE id_usuario=$1 LIMIT 1', [req.user.id_usuario]);
+    if (q.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    const ok = await bcrypt.compare(currentPassword, q.rows[0].contrasena);
+    if (!ok) {
+      return res.status(401).json({ success: false, message: 'Contraseña actual incorrecta' });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE usuario SET contrasena=$1, updated_at=NOW() WHERE id_usuario=$2', [hash, req.user.id_usuario]);
+    return res.json({ success: true, message: 'Contraseña actualizada' });
+  } catch (err) {
+    console.error('[waylo][auth] changePassword error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { registrarCliente, registrarGuia, login, refreshToken, logout, deactivateAccount, updateEmail, changePassword };

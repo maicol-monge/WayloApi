@@ -1,5 +1,5 @@
 const { db } = require('../../config/db');
-const { obtenerUrlPublica } = require('../../services/imageService');
+const { obtenerUrlPublica, subirImagen } = require('../../services/imageService');
 
 // GET /api/waylo/clientes/:id
 async function obtenerCliente(req, res) {
@@ -65,3 +65,50 @@ async function actualizarCliente(req, res) {
 }
 
 module.exports = { obtenerCliente, obtenerClientePorUsuario, actualizarCliente };
+// PUT /api/waylo/clientes/:id/nombre  → actualiza usuario.nombre a partir del perfil_cliente
+async function actualizarNombre(req, res) {
+  try {
+    const { id } = req.params; // id_perfil_cliente
+    let { nombre } = req.body;
+    if (typeof nombre === 'string') nombre = nombre.trim();
+    if (!nombre) return res.status(400).json({ success: false, message: 'nombre requerido' });
+
+    const q = await db.query('SELECT id_usuario FROM perfil_cliente WHERE id_perfil_cliente=$1 LIMIT 1', [id]);
+    if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
+    const idUsuario = q.rows[0].id_usuario;
+    const up = await db.query('UPDATE usuario SET nombre=$1, updated_at=NOW() WHERE id_usuario=$2 RETURNING id_usuario, nombre, email', [nombre, idUsuario]);
+    return res.json({ success: true, data: up.rows[0], message: 'Nombre actualizado' });
+  } catch (err) {
+    console.error('[waylo][clientes] actualizarNombre error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+// POST /api/waylo/clientes/:id/avatar → sube imagen y actualiza perfil_cliente.imagen_perfil
+async function actualizarAvatar(req, res) {
+  try {
+    const { id } = req.params; // id_perfil_cliente
+    if (!req.file) return res.status(400).json({ success: false, message: 'Archivo de imagen requerido' });
+    const lower = (req.file.originalname || '').toLowerCase();
+    if (!/\.(jpg|jpeg|png|gif|webp)$/.test(lower)) {
+      return res.status(400).json({ success: false, message: 'Formato de imagen inválido' });
+    }
+    const upload = await subirImagen(req.file.buffer, req.file.originalname, 'foto-perfil');
+    if (!upload.success) {
+      return res.status(500).json({ success: false, message: 'No se pudo subir la imagen' });
+    }
+    const path = upload.data.path;
+    const up = await db.query('UPDATE perfil_cliente SET imagen_perfil=$1 WHERE id_perfil_cliente=$2 RETURNING imagen_perfil', [path, id]);
+    let imagen_perfil_url = null;
+    if (up.rows.length) {
+      const signed = await obtenerUrlPublica(up.rows[0].imagen_perfil, 3600);
+      if (signed.success) imagen_perfil_url = signed.signedUrl;
+    }
+    res.json({ success: true, data: { imagen_perfil_url } });
+  } catch (err) {
+    console.error('[waylo][clientes] actualizarAvatar error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { obtenerCliente, obtenerClientePorUsuario, actualizarCliente, actualizarNombre, actualizarAvatar };
