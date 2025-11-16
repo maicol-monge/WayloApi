@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const upload = multer(); // memoryStorage por defecto
-const { registrarCliente, registrarGuia, login, refreshToken, logout } = require('../../controllers/waylo/authController');
+const { registrarCliente, registrarGuia, login, refreshToken, logout, deactivateAccount } = require('../../controllers/waylo/authController');
 const { forgotPassword, resetPassword } = require('../../controllers/waylo/passwordResetController');
 const { requireAuth } = require('../../middleware/authMiddleware');
 
@@ -14,5 +14,7 @@ router.post('/refresh', refreshToken);
 router.post('/logout', requireAuth, logout);
 router.post('/password/forgot', forgotPassword);
 router.post('/password/reset', resetPassword);
+// Desactivar cuenta (self-service)
+router.post('/deactivate', requireAuth, deactivateAccount);
 
 module.exports = router;

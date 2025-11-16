@@ -361,4 +361,25 @@ async function logout(req, res) {
   }
 }
 
-module.exports = { registrarCliente, registrarGuia, login, refreshToken, logout };
+// POST /api/waylo/auth/deactivate (self-service): desactiva la cuenta del usuario autenticado
+async function deactivateAccount(req, res) {
+  try {
+    if (!req.user || !req.user.id_usuario) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+    const id = req.user.id_usuario;
+    // Desactivar usuario
+    const up = await db.query("UPDATE usuario SET estado='I', updated_at=NOW() WHERE id_usuario=$1 RETURNING id_usuario, email, estado", [id]);
+    if (up.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    // Revocar todas las sesiones del usuario
+    await db.query("UPDATE token_sesion SET revoked='S' WHERE id_usuario=$1", [id]);
+    return res.json({ success: true, message: 'Cuenta desactivada exitosamente' });
+  } catch (err) {
+    console.error('[waylo][auth] deactivate error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { registrarCliente, registrarGuia, login, refreshToken, logout, deactivateAccount };
