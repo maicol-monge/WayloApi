@@ -146,7 +146,8 @@ async function actualizarGuiaAvatar(req, res) {
     const upRes = await subirImagen(req.file.buffer, req.file.originalname, 'foto-perfil');
     if (!upRes.success) return res.status(500).json({ success: false, message: 'Error subiendo imagen' });
     const path = upRes.data.path;
-    const updated = await db.query('UPDATE perfil_guia SET imagen_perfil=$1, updated_at=NOW() WHERE id_perfil_guia=$2 RETURNING *', [path, id]);
+  // Nota: la tabla perfil_guia no tiene columna updated_at; solo actualizamos imagen_perfil
+  const updated = await db.query('UPDATE perfil_guia SET imagen_perfil=$1 WHERE id_perfil_guia=$2 RETURNING *', [path, id]);
     const perfil = updated.rows[0];
     let imagen_perfil_url = null;
     if (perfil.imagen_perfil) {
