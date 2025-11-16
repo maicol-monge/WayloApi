@@ -72,7 +72,7 @@ async function obtenerGuia(req, res) {
       } catch (e) {}
     }
     // fotos
-    const fotos = await db.query(`SELECT id_foto_guia, foto_url, descripcion, aprobado FROM fotos_guia WHERE id_perfil_guia=$1 AND estado='A' ORDER BY created_at DESC`, [id]);
+  const fotos = await db.query(`SELECT id_foto_guia, foto_url, descripcion, aprobado FROM fotos_guia WHERE id_perfil_guia=$1 AND estado='A' ORDER BY created_at DESC`, [id]);
     // firmar fotos
     const fotosRows = await Promise.all(fotos.rows.map(async (f) => {
       if (f.foto_url) {
@@ -83,13 +83,20 @@ async function obtenerGuia(req, res) {
       }
       return f;
     }));
+    // Normalizar aprobado (CHAR(1)) a boolean
+    const fotosOut = fotosRows.map((f) => ({
+      id_foto_guia: f.id_foto_guia,
+      foto_url_signed: f.foto_url_signed,
+      descripcion: f.descripcion,
+      aprobado: (f.aprobado === 'S' || f.aprobado === 'Y' || f.aprobado === true)
+    }));
     // resenas
     const resenas = await db.query(`SELECT r.*, pc.id_perfil_cliente FROM resena r LEFT JOIN perfil_cliente pc ON pc.id_perfil_cliente = r.id_perfil_cliente WHERE r.id_perfil_guia=$1 ORDER BY created_at DESC`, [id]);
     // idiomas del guía (por id_usuario)
     const id_usuario = q.rows[0].id_usuario;
     const idiomas = await db.query('SELECT id_idioma, nombre, nivel FROM idiomas WHERE id_usuario=$1 ORDER BY id_idioma', [id_usuario]);
 
-  res.json({ success: true, data: { perfil: q.rows[0], fotos: fotosRows, resenas: resenas.rows, idiomas: idiomas.rows } });
+  res.json({ success: true, data: { perfil: q.rows[0], fotos: fotosOut, resenas: resenas.rows, idiomas: idiomas.rows } });
   } catch (err) {
     console.error('[waylo][guias] obtener error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -240,7 +247,9 @@ async function subirFotoGuia(req, res) {
       if (signed.success) signedUrl = signed.signedUrl;
     } catch (e) {}
     foto.foto_url_signed = signedUrl;
-    res.json({ success: true, data: { id_foto_guia: foto.id_foto_guia, foto_url_signed: signedUrl, descripcion: foto.descripcion, aprobado: foto.aprobado } });
+    // Convertir aprobado CHAR(1) a boolean esperado por el cliente
+    const aprobadoBool = (foto.aprobado === 'S' || foto.aprobado === 'Y' || foto.aprobado === true);
+    res.json({ success: true, data: { id_foto_guia: foto.id_foto_guia, foto_url_signed: signedUrl, descripcion: foto.descripcion, aprobado: aprobadoBool } });
   } catch (err) {
     console.error('[waylo][guias] subirFotoGuia error:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
