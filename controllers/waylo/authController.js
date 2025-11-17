@@ -89,7 +89,7 @@ async function registrarCliente(req, res) {
     // normalizar entradas
     if (typeof email === 'string') email = email.trim().toLowerCase();
     if (typeof nombre === 'string') nombre = nombre.trim();
-    if (typeof contrasena === 'string') contrasena = contrasena.trim();
+  if (typeof contrasena === 'string') contrasena = contrasena.trim();
     if (typeof descripcion === 'string') descripcion = descripcion.trim();
     if (typeof pais === 'string') pais = pais.trim();
     if (typeof ciudad === 'string') ciudad = ciudad.trim();
@@ -163,7 +163,7 @@ async function registrarGuia(req, res) {
     // normalizar entradas
     if (typeof email === 'string') email = email.trim().toLowerCase();
     if (typeof nombre === 'string') nombre = nombre.trim();
-    if (typeof contrasena === 'string') contrasena = contrasena.trim();
+  if (typeof contrasena === 'string') contrasena = contrasena.trim();
     if (typeof descripcion === 'string') descripcion = descripcion.trim();
     if (typeof pais === 'string') pais = pais.trim();
     if (typeof ciudad === 'string') ciudad = ciudad.trim();
@@ -253,7 +253,7 @@ async function login(req, res) {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (isLocked(email, ip)) return res.status(429).json({ success: false, message: 'Demasiados intentos fallidos. Intenta más tarde.' });
 
-    const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, u.id_rol, u.estado, u.created_at, u.updated_at, r.nombre as rol
+  const q = await db.query(`SELECT u.id_usuario, u.nombre, u.email, u.contrasena, u.id_rol, u.estado, u.created_at, u.updated_at, r.nombre as rol
                 FROM usuario u JOIN rol r ON u.id_rol = r.id_rol
                 WHERE u.email=$1`, [email]);
     if (q.rows.length === 0) {
@@ -401,7 +401,7 @@ async function updateEmail(req, res) {
     if (exists.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'Email ya registrado' });
     }
-    const up = await db.query('UPDATE usuario SET email=$1, updated_at=NOW() WHERE id_usuario=$2 RETURNING id_usuario, nombre, email', [newEmail, req.user.id_usuario]);
+  const up = await db.query('UPDATE usuario SET email=$1, updated_at=NOW() WHERE id_usuario=$2 RETURNING id_usuario, nombre, email', [newEmail, req.user.id_usuario]);
     if (up.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
@@ -427,7 +427,7 @@ async function changePassword(req, res) {
     if (!isStrongPassword(newPassword)) {
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres' });
     }
-    const q = await db.query('SELECT contrasena FROM usuario WHERE id_usuario=$1 LIMIT 1', [req.user.id_usuario]);
+  const q = await db.query('SELECT contrasena FROM usuario WHERE id_usuario=$1 LIMIT 1', [req.user.id_usuario]);
     if (q.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }

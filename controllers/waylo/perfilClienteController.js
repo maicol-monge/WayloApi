@@ -5,7 +5,7 @@ const { obtenerUrlPublica, subirImagen } = require('../../services/imageService'
 async function obtenerCliente(req, res) {
   try {
     const { id } = req.params;
-    const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_perfil_cliente=$1`, [id]);
+  const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_perfil_cliente=$1`, [id]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
     const row = q.rows[0];
     if (row.imagen_perfil) {
@@ -23,7 +23,7 @@ async function obtenerCliente(req, res) {
 async function obtenerClientePorUsuario(req, res) {
   try {
     const { id_usuario } = req.params;
-    const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_usuario=$1`, [id_usuario]);
+  const q = await db.query(`SELECT pc.*, u.nombre, u.email FROM perfil_cliente pc JOIN usuario u ON u.id_usuario=pc.id_usuario WHERE pc.id_usuario=$1`, [id_usuario]);
     if (q.rows.length === 0) return res.status(404).json({ success: false, message: 'Perfil cliente no encontrado' });
     const row = q.rows[0];
     if (row.imagen_perfil) {
@@ -64,7 +64,6 @@ async function actualizarCliente(req, res) {
   }
 }
 
-module.exports = { obtenerCliente, obtenerClientePorUsuario, actualizarCliente };
 // PUT /api/waylo/clientes/:id/nombre  → actualiza usuario.nombre a partir del perfil_cliente
 async function actualizarNombre(req, res) {
   try {
