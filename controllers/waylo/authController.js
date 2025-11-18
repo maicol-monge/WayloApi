@@ -299,12 +299,13 @@ async function login(req, res) {
     await db.query('INSERT INTO token_sesion (id_usuario, token, refresh_token, expires_at) VALUES ($1,$2,$3,$4)', [user.id_usuario, token, refresh, exp]);
     recordLoginAttempt(email, ip, true);
 
+    // Obtener perfil asociado. Si existen múltiples filas (no hay constraint único en perfil_cliente/perfil_guia), tomar la más reciente.
     let perfil = null;
     if (user.rol && user.rol.toLowerCase() === 'guia') {
-      const pg = await db.query('SELECT * FROM perfil_guia WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
+      const pg = await db.query('SELECT * FROM perfil_guia WHERE id_usuario=$1 ORDER BY id_perfil_guia DESC LIMIT 1', [user.id_usuario]);
       if (pg.rows.length) perfil = { tipo: 'guia', ...pg.rows[0] };
     } else {
-      const pc = await db.query('SELECT * FROM perfil_cliente WHERE id_usuario=$1 LIMIT 1', [user.id_usuario]);
+      const pc = await db.query('SELECT * FROM perfil_cliente WHERE id_usuario=$1 ORDER BY id_perfil_cliente DESC LIMIT 1', [user.id_usuario]);
       if (pc.rows.length) perfil = { tipo: 'cliente', ...pc.rows[0] };
     }
     if (perfil && perfil.imagen_perfil) {
