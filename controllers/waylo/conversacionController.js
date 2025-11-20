@@ -22,7 +22,30 @@ async function crearConversacion(req, res) {
 async function listarConversaciones(req, res) {
   try {
     const { id_usuario } = req.params;
-    const q = await db.query('SELECT * FROM conversacion WHERE id_usuario1=$1 OR id_usuario2=$1 ORDER BY created_at DESC', [id_usuario]);
+    // Extendemos la consulta para incluir último mensaje y conteo aproximado de "no leídos"
+    // Nota: unread_count actualmente representa el total de mensajes enviados por el otro usuario.
+    // Para un tracking real de lectura se necesitaría una columna adicional (ej. read_at / seen boolean).
+    const q = await db.query(`
+      SELECT c.*, 
+             lm.mensaje AS last_message,
+             lm.created_at AS last_message_created_at,
+             COALESCE(uc.unread_count, 0) AS unread_count
+      FROM conversacion c
+      LEFT JOIN LATERAL (
+        SELECT mensaje, created_at
+        FROM mensaje m
+        WHERE m.id_conversacion = c.id_conversacion
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) lm ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS unread_count
+        FROM mensaje m2
+        WHERE m2.id_conversacion = c.id_conversacion AND m2.id_usuario_sender <> $1
+      ) uc ON TRUE
+      WHERE c.id_usuario1=$1 OR c.id_usuario2=$1
+      ORDER BY COALESCE(lm.created_at, c.created_at) DESC
+    `, [id_usuario]);
     res.json({ success: true, data: q.rows });
   } catch (err) {
     console.error('[waylo][chat] listar conversacion error:', err);
