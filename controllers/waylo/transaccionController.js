@@ -25,7 +25,7 @@ async function listarPorUsuario(req, res) {
   try {
     const { id_usuario } = req.params;
     const q = await db.query(`
-      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente
+      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente, r.monto AS reserva_monto, r.comision AS reserva_comision
       FROM transaccion t
       JOIN reservas r ON r.id_reserva = t.id_reserva
       JOIN perfil_cliente pc ON pc.id_perfil_cliente = r.id_perfil_cliente
@@ -44,7 +44,8 @@ async function listarPorGuia(req, res) {
   try {
     const { id_perfil_guia } = req.params;
     const q = await db.query(`
-      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente, r.lugar, r.personas, r.fecha_reserva, r.hora_inicio, r.hora_fin
+      SELECT t.*, r.id_perfil_guia, r.id_perfil_cliente, r.lugar, r.personas, r.fecha_reserva, r.hora_inicio, r.hora_fin,
+             r.monto AS reserva_monto, r.comision AS reserva_comision
       FROM transaccion t
       JOIN reservas r ON r.id_reserva = t.id_reserva
       WHERE r.id_perfil_guia = $1
