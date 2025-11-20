@@ -22,14 +22,21 @@ async function crearConversacion(req, res) {
 async function listarConversaciones(req, res) {
   try {
     const { id_usuario } = req.params;
-    // Extendemos la consulta para incluir último mensaje y conteo aproximado de "no leídos"
-    // Nota: unread_count actualmente representa el total de mensajes enviados por el otro usuario.
-    // Para un tracking real de lectura se necesitaría una columna adicional (ej. read_at / seen boolean).
+    // Extendemos la consulta para incluir último mensaje, conteo de "no leídos" y datos del otro usuario
     const q = await db.query(`
-      SELECT c.*, 
-             lm.mensaje AS last_message,
-             lm.created_at AS last_message_created_at,
-             COALESCE(uc.unread_count, 0) AS unread_count
+      SELECT 
+        c.*,
+        lm.mensaje AS last_message,
+        lm.created_at AS last_message_created_at,
+        COALESCE(uc.unread_count, 0) AS unread_count,
+        -- Datos del otro usuario (el que NO es id_usuario)
+        u.nombre AS counterpart_nombre,
+        u.email AS counterpart_email,
+        CASE 
+          WHEN pg.id_perfil_guia IS NOT NULL THEN pg.imagen_perfil
+          WHEN pc.id_perfil_cliente IS NOT NULL THEN pc.imagen_perfil
+          ELSE NULL
+        END AS counterpart_avatar
       FROM conversacion c
       LEFT JOIN LATERAL (
         SELECT mensaje, created_at
@@ -41,8 +48,19 @@ async function listarConversaciones(req, res) {
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS unread_count
         FROM mensaje m2
-        WHERE m2.id_conversacion = c.id_conversacion AND m2.id_usuario_sender <> $1
+        WHERE m2.id_conversacion = c.id_conversacion AND m2.id_usuario_sender <> $1 AND id_read='N'
       ) uc ON TRUE
+      -- Join con el otro usuario
+      LEFT JOIN usuario u ON (
+        CASE 
+          WHEN c.id_usuario1 = $1 THEN u.id_usuario = c.id_usuario2
+          ELSE u.id_usuario = c.id_usuario1
+        END
+      )
+      -- Intentar obtener avatar del perfil de guía
+      LEFT JOIN perfil_guia pg ON pg.id_usuario = u.id_usuario
+      -- O del perfil de cliente
+      LEFT JOIN perfil_cliente pc ON pc.id_usuario = u.id_usuario
       WHERE c.id_usuario1=$1 OR c.id_usuario2=$1
       ORDER BY COALESCE(lm.created_at, c.created_at) DESC
     `, [id_usuario]);
