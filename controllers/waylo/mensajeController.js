@@ -36,4 +36,29 @@ async function listarMensajes(req, res) {
   }
 }
 
-module.exports = { enviarMensaje, listarMensajes };
+// PATCH /api/waylo/mensajes/:id_conversacion/mark-read
+async function marcarMensajesLeidos(req, res) {
+  try {
+    const { id_conversacion } = req.params;
+    const { id_usuario } = req.body; // usuario que está leyendo
+    if (!id_conversacion || !id_usuario) {
+      return res.status(400).json({ success: false, message: 'id_conversacion e id_usuario requeridos' });
+    }
+    // Marcar como leídos todos los mensajes que NO son del usuario actual
+    const upd = await db.query(
+      "UPDATE mensaje SET id_read='S' WHERE id_conversacion=$1 AND id_usuario_sender!=$2 AND id_read='N' RETURNING *",
+      [id_conversacion, id_usuario]
+    );
+    // Emitir evento para actualizar UI en otros clientes
+    try {
+      const io = getIO();
+      io.to(`conv:${id_conversacion}`).emit('messages_read', { id_conversacion, id_usuario, count: upd.rowCount });
+    } catch (e) { /* ignore */ }
+    res.json({ success: true, count: upd.rowCount });
+  } catch (err) {
+    console.error('[waylo][chat] marcar mensajes leidos error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { enviarMensaje, listarMensajes, marcarMensajesLeidos };

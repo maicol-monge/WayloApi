@@ -14,10 +14,13 @@ function initSocket(httpServer, corsOrigins = ['*']) {
   });
 
   ioInstance.on('connection', (socket) => {
+    console.log('[socket] Cliente conectado:', socket.id);
+
     // Join a conversation room
     socket.on('join_conversation', ({ id_conversacion }) => {
       if (!id_conversacion) return;
       socket.join(`conv:${id_conversacion}`);
+      console.log(`[socket] Cliente ${socket.id} unido a conv:${id_conversacion}`);
     });
 
     // Typing indicators
@@ -49,6 +52,10 @@ function initSocket(httpServer, corsOrigins = ['*']) {
         console.error('[socket] message_send error:', err);
         if (ack) ack({ success: false, message: 'Error interno del servidor' });
       }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[socket] Cliente desconectado:', socket.id);
     });
   });
 
