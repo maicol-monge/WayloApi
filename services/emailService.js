@@ -136,7 +136,7 @@ async function sendPasswordResetEmail({ to, link, tipo, displayName }) {
     return;
   }
 
-  const subject = 'Restablecimiento de contraseña - EcoPoints';
+  const subject = 'Restablecimiento de contraseña - Waylo';
   const plain = `Hola ${displayName || ''}\n\n` +
     `Recibimos una solicitud para restablecer tu contraseña de ${tipo}.\n` +
     `Usa el siguiente enlace para continuar (válido por 1 hora):\n\n${link}\n\n` +
@@ -144,18 +144,16 @@ async function sendPasswordResetEmail({ to, link, tipo, displayName }) {
 
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-      <h2>Restablecimiento de contraseña</h2>
+      <h2 style="color:#088D7B">Restablecimiento de contraseña</h2>
       <p>Hola ${displayName || ''},</p>
       <p>Recibimos una solicitud para restablecer tu contraseña de <strong>${tipo}</strong>.</p>
       <p>Usa el siguiente botón para continuar (válido por 1 hora):</p>
-      <p>
-        <a href="${link}" style="background:#16a34a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">
-          Restablecer contraseña
-        </a>
+      <p style="margin: 20px 0;">
+        <a href="${link}" style="display:inline-block;background:#088D7B;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Restablecer contraseña</a>
       </p>
       <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-      <p><a href="${link}">${link}</a></p>
-      <hr/>
+      <p style="word-break:break-all;color:#088D7B"><a href="${link}" style="color:#088D7B">${link}</a></p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
       <p style="color:#666;font-size:12px">Si no solicitaste este cambio, puedes ignorar este correo.</p>
     </div>
   `;

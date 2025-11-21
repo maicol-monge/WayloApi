@@ -17,12 +17,15 @@ async function forgotPassword(req, res) {
     const exp = new Date(Date.now() + 60 * 60 * 1000); // 1h
     await db.query('INSERT INTO token_reset (id_usuario, token, expires_at) VALUES ($1,$2,$3)', [user.id_usuario, token, exp]);
 
-    const base = process.env.FRONTEND_BASE_URL  || 'https://waylopasswordreset.onrender.com';
+    const base = (process.env.FRONTEND_BASE_URL || 'https://waylopasswordreset.onrender.com').replace(/\/+$/, '');
     const link = `${base}/reset-password?token=${token}`;
+    console.log('[password-reset] Generated reset link:', link);
+    
     try {
       await sendPasswordResetEmail({ to: email, link, tipo: 'Waylo', displayName: user.nombre });
+      console.log('[password-reset] Email sent successfully to:', email);
     } catch (e) {
-      console.warn('[password-reset] fallo envio email:', e.message);
+      console.error('[password-reset] Failed to send email:', e.message);
     }
 
     res.json({ success: true });
