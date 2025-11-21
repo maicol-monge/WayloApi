@@ -1,6 +1,6 @@
 const { db } = require('../../../config/db');
-const { sendPasswordResetEmail } = require('../../../services/emailService');
-const { obtenerUrlPublica } = require('../../../services/imageService');
+const { sendPasswordResetEmail, sendPhotoDeletedEmail, sendGuideApprovedEmail, sendAccountDeactivatedEmail } = require('../../../services/emailService');
+const { obtenerUrlPublica, eliminarImagen } = require('../../../services/imageService');
 
 // GET /api/waylo/admin/guias
 async function listGuias(req, res) {
@@ -110,11 +110,21 @@ async function setVerification(req, res) {
         // Non-blocking - continue even if document update fails
       }
     }
-    // crear notificación al guía
+    // crear notificación al guía y enviar email si fue aprobado
     try {
       const u = await db.query('SELECT u.id_usuario, u.email, u.nombre FROM perfil_guia pg JOIN usuario u ON u.id_usuario=pg.id_usuario WHERE pg.id_perfil_guia=$1', [id]);
       if (u.rows.length) {
         await db.query('INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje) VALUES ($1,$2,$3,$4)', [u.rows[0].id_usuario, 'otros', 'Estado de verificación', `Tu verificación fue actualizada a: ${verificacion_estado}`]);
+        
+        // Enviar email si fue aprobado
+        if (verificacion_estado === 'aprobado') {
+          try {
+            await sendGuideApprovedEmail({ to: u.rows[0].email, displayName: u.rows[0].nombre });
+            console.log('[admin][guias] Approval email sent to:', u.rows[0].email);
+          } catch (emailErr) {
+            console.error('[admin][guias] Failed to send approval email:', emailErr.message);
+          }
+        }
       }
     } catch (e) {
       // non-blocking
@@ -207,4 +217,71 @@ async function setDocumentoEstado(req, res) {
   }
 }
 
-module.exports = { listGuias, getGuia, setVerification, listDocumentos, setDocumentoEstado };
+// DELETE /api/waylo/admin/guias/:id/fotos/:id_foto
+async function deleteFotoGuia(req, res) {
+  try {
+    const { id, id_foto } = req.params; // id = id_perfil_guia, id_foto = id_foto_guia
+    const { reason } = req.body; // Motivo de eliminación (opcional)
+    
+    // Obtener información de la foto y del guía
+    const fotoQuery = await db.query(
+      'SELECT fg.*, u.email, u.nombre FROM fotos_guia fg JOIN perfil_guia pg ON pg.id_perfil_guia = fg.id_perfil_guia JOIN usuario u ON u.id_usuario = pg.id_usuario WHERE fg.id_foto_guia = $1 AND fg.id_perfil_guia = $2',
+      [id_foto, id]
+    );
+    
+    if (fotoQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Foto no encontrada' });
+    }
+    
+    const foto = fotoQuery.rows[0];
+    
+    // Eliminar de Supabase si existe foto_url
+    if (foto.foto_url) {
+      try {
+        await eliminarImagen(foto.foto_url);
+        console.log('[admin][fotos] Deleted from storage:', foto.foto_url);
+      } catch (storageErr) {
+        console.error('[admin][fotos] Failed to delete from storage:', storageErr.message);
+        // Continue even if storage deletion fails
+      }
+    }
+    
+    // Eliminar de base de datos
+    await db.query('DELETE FROM fotos_guia WHERE id_foto_guia = $1', [id_foto]);
+    
+    // Enviar email al guía notificando la eliminación
+    try {
+      await sendPhotoDeletedEmail({
+        to: foto.email,
+        displayName: foto.nombre,
+        reason: reason || 'No cumple con las políticas de contenido de Waylo'
+      });
+      console.log('[admin][fotos] Deletion notification email sent to:', foto.email);
+    } catch (emailErr) {
+      console.error('[admin][fotos] Failed to send deletion email:', emailErr.message);
+      // Non-blocking - continue even if email fails
+    }
+    
+    // Crear notificación en la app
+    try {
+      await db.query(
+        'INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje) VALUES ($1, $2, $3, $4)',
+        [
+          foto.id_usuario,
+          'otros',
+          'Foto eliminada',
+          `Una de tus fotos fue eliminada. Motivo: ${reason || 'No cumple con las políticas de contenido'}`
+        ]
+      );
+    } catch (notifErr) {
+      console.error('[admin][fotos] Failed to create notification:', notifErr.message);
+    }
+    
+    res.json({ success: true, message: 'Foto eliminada exitosamente' });
+  } catch (err) {
+    console.error('[admin][fotos] deleteFotoGuia error:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}
+
+module.exports = { listGuias, getGuia, setVerification, listDocumentos, setDocumentoEstado, deleteFotoGuia };

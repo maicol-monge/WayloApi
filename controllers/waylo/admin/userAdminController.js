@@ -1,6 +1,7 @@
 const { db } = require('../../../config/db');
 const bcrypt = require('bcryptjs');
 const { obtenerUrlPublica } = require('../../../services/imageService');
+const { sendAccountDeactivatedEmail } = require('../../../services/emailService');
 
 // GET /api/waylo/admin/users
 async function listUsers(req, res) {
@@ -140,10 +141,50 @@ async function setRole(req, res) {
 async function setState(req, res) {
   try {
     const { id } = req.params;
-    const { estado } = req.body; // 'A' or 'I'
+    const { estado, reason } = req.body; // 'A' or 'I', reason (opcional)
     if (!estado) return res.status(400).json({ success: false, message: 'estado requerido' });
+    
+    // Obtener información del usuario antes de actualizar
+    const userQuery = await db.query('SELECT * FROM usuario WHERE id_usuario=$1', [id]);
+    if (userQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+    const user = userQuery.rows[0];
+    
+    // Actualizar estado
     const up = await db.query('UPDATE usuario SET estado=$1, updated_at=NOW() WHERE id_usuario=$2 RETURNING *', [estado, id]);
     if (up.rows.length === 0) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    
+    // Si se desactiva la cuenta (estado='I'), enviar email
+    if (estado === 'I') {
+      try {
+        await sendAccountDeactivatedEmail({
+          to: user.email,
+          displayName: user.nombre,
+          reason: reason || 'Violación de las políticas de la plataforma'
+        });
+        console.log('[admin][users] Deactivation email sent to:', user.email);
+      } catch (emailErr) {
+        console.error('[admin][users] Failed to send deactivation email:', emailErr.message);
+        // Non-blocking - continue even if email fails
+      }
+      
+      // Crear notificación
+      try {
+        await db.query(
+          'INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje) VALUES ($1, $2, $3, $4)',
+          [
+            id,
+            'otros',
+            'Cuenta desactivada',
+            `Tu cuenta ha sido desactivada. Motivo: ${reason || 'Violación de las políticas de la plataforma'}`
+          ]
+        );
+      } catch (notifErr) {
+        console.error('[admin][users] Failed to create notification:', notifErr.message);
+      }
+    }
+    
     res.json({ success: true, data: up.rows[0] });
   } catch (err) {
     console.error('[admin][users] setState error:', err);

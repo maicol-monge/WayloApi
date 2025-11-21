@@ -178,4 +178,143 @@ async function sendPasswordResetEmail({ to, link, tipo, displayName }) {
   await transporter.sendMail({ from, to, subject, text: plain, html });
 }
 
-module.exports = { sendPasswordResetEmail };
+async function sendPhotoDeletedEmail({ to, displayName, reason }) {
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@waylo.local';
+  if (String(process.env.SKIP_EMAIL_SEND).toLowerCase() === 'true') {
+    console.warn('[email] SKIP_EMAIL_SEND=true - no se enviará correo. Destinatario:', to);
+    return;
+  }
+
+  const subject = 'Foto eliminada - Waylo';
+  const plain = `Hola ${displayName || ''},\n\n` +
+    `Una de tus fotos ha sido eliminada por incumplir nuestras políticas de uso.\n\n` +
+    `Motivo: ${reason || 'No cumple con las políticas de contenido de Waylo'}\n\n` +
+    `Por favor, asegúrate de que todas tus fotos cumplan con nuestras políticas de la plataforma.\n\n` +
+    `Si tienes dudas, contáctanos.`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+      <h2 style="color:#088D7B">Foto eliminada</h2>
+      <p>Hola <strong>${displayName || ''}</strong>,</p>
+      <p>Una de tus fotos ha sido eliminada por incumplir nuestras políticas de uso.</p>
+      <div style="background:#fff3cd;border-left:4px solid #f39c12;padding:12px;margin:16px 0;border-radius:4px">
+        <strong>Motivo:</strong> ${reason || 'No cumple con las políticas de contenido de Waylo'}
+      </div>
+      <p>Por favor, asegúrate de que todas tus fotos cumplan con nuestras políticas de la plataforma.</p>
+      <p>Si tienes dudas sobre nuestras políticas, no dudes en contactarnos.</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+      <p style="color:#666;font-size:12px">Este es un correo automático de Waylo.</p>
+    </div>
+  `;
+
+  if (canUseSendGrid()) {
+    console.info('[email] Using SendGrid transport');
+    await sendViaSendGrid({ to, subject, text: plain, html });
+    return;
+  }
+
+  if (canUseResend()) {
+    console.info('[email] Using Resend transport');
+    await sendViaResend({ to, subject, text: plain, html });
+    return;
+  }
+
+  console.info('[email] Using SMTP/Gmail transport');
+  const transporter = createTransporter();
+  await transporter.sendMail({ from, to, subject, text: plain, html });
+}
+
+async function sendGuideApprovedEmail({ to, displayName }) {
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@waylo.local';
+  if (String(process.env.SKIP_EMAIL_SEND).toLowerCase() === 'true') {
+    console.warn('[email] SKIP_EMAIL_SEND=true - no se enviará correo. Destinatario:', to);
+    return;
+  }
+
+  const subject = '¡Cuenta aprobada! - Waylo';
+  const plain = `Hola ${displayName || ''},\n\n` +
+    `¡Felicitaciones! Tu cuenta de guía ha sido aprobada.\n\n` +
+    `Ya puedes acceder a la plataforma Waylo y comenzar a ofrecer tus servicios.\n\n` +
+    `¡Bienvenido a Waylo!`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+      <h2 style="color:#088D7B">¡Cuenta aprobada!</h2>
+      <p>Hola <strong>${displayName || ''}</strong>,</p>
+      <div style="background:#d4edda;border-left:4px solid #28a745;padding:12px;margin:16px 0;border-radius:4px">
+        <p style="margin:0">¡Felicitaciones! Tu cuenta de guía ha sido <strong>aprobada</strong>.</p>
+      </div>
+      <p>Ya puedes acceder a la plataforma Waylo y comenzar a ofrecer tus servicios como guía turístico.</p>
+      <p>Gracias por unirte a nuestra comunidad. ¡Te deseamos mucho éxito!</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+      <p style="color:#666;font-size:12px">Este es un correo automático de Waylo.</p>
+    </div>
+  `;
+
+  if (canUseSendGrid()) {
+    console.info('[email] Using SendGrid transport');
+    await sendViaSendGrid({ to, subject, text: plain, html });
+    return;
+  }
+
+  if (canUseResend()) {
+    console.info('[email] Using Resend transport');
+    await sendViaResend({ to, subject, text: plain, html });
+    return;
+  }
+
+  console.info('[email] Using SMTP/Gmail transport');
+  const transporter = createTransporter();
+  await transporter.sendMail({ from, to, subject, text: plain, html });
+}
+
+async function sendAccountDeactivatedEmail({ to, displayName, reason }) {
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@waylo.local';
+  if (String(process.env.SKIP_EMAIL_SEND).toLowerCase() === 'true') {
+    console.warn('[email] SKIP_EMAIL_SEND=true - no se enviará correo. Destinatario:', to);
+    return;
+  }
+
+  const subject = 'Cuenta desactivada - Waylo';
+  const plain = `Hola ${displayName || ''},\n\n` +
+    `Tu cuenta ha sido desactivada por el equipo de administración de Waylo.\n\n` +
+    `Motivo: ${reason || 'Violación de las políticas de la plataforma'}\n\n` +
+    `Si crees que esto es un error o deseas más información, por favor contáctanos.`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+      <h2 style="color:#dc3545">Cuenta desactivada</h2>
+      <p>Hola <strong>${displayName || ''}</strong>,</p>
+      <p>Tu cuenta ha sido desactivada por el equipo de administración de Waylo.</p>
+      <div style="background:#f8d7da;border-left:4px solid #dc3545;padding:12px;margin:16px 0;border-radius:4px">
+        <strong>Motivo:</strong> ${reason || 'Violación de las políticas de la plataforma'}
+      </div>
+      <p>Si crees que esto es un error o deseas más información, por favor contáctanos.</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
+      <p style="color:#666;font-size:12px">Este es un correo automático de Waylo.</p>
+    </div>
+  `;
+
+  if (canUseSendGrid()) {
+    console.info('[email] Using SendGrid transport');
+    await sendViaSendGrid({ to, subject, text: plain, html });
+    return;
+  }
+
+  if (canUseResend()) {
+    console.info('[email] Using Resend transport');
+    await sendViaResend({ to, subject, text: plain, html });
+    return;
+  }
+
+  console.info('[email] Using SMTP/Gmail transport');
+  const transporter = createTransporter();
+  await transporter.sendMail({ from, to, subject, text: plain, html });
+}
+
+module.exports = { 
+  sendPasswordResetEmail, 
+  sendPhotoDeletedEmail, 
+  sendGuideApprovedEmail, 
+  sendAccountDeactivatedEmail 
+};

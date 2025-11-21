@@ -27,9 +27,10 @@ router.put('/users/:id/state', setState);
 router.put('/users/:id/password', setPassword);
 
 // Guides & documents
-const { listGuias, getGuia, listDocumentos, setDocumentoEstado } = require('../../controllers/waylo/admin/guiaAdminController');
+const { listGuias, getGuia, listDocumentos, setDocumentoEstado, deleteFotoGuia } = require('../../controllers/waylo/admin/guiaAdminController');
 router.get('/guias', listGuias);
 router.get('/guias/:id', getGuia);
+router.delete('/guias/:id/fotos/:id_foto', deleteFotoGuia);
 router.get('/documentos', listDocumentos);
 router.put('/documentos/:id_documento/estado', setDocumentoEstado);
 
