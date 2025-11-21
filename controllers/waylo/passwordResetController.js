@@ -17,7 +17,7 @@ async function forgotPassword(req, res) {
     const exp = new Date(Date.now() + 60 * 60 * 1000); // 1h
     await db.query('INSERT INTO token_reset (id_usuario, token, expires_at) VALUES ($1,$2,$3)', [user.id_usuario, token, exp]);
 
-    const base = process.env.APP_WEB_URL || 'https://waylo.app';
+    const base = process.env.FRONTEND_BASE_URL  || 'https://waylopasswordreset.onrender.com';
     const link = `${base}/reset-password?token=${token}`;
     try {
       await sendPasswordResetEmail({ to: email, link, tipo: 'Waylo', displayName: user.nombre });
