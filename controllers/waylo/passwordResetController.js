@@ -18,7 +18,8 @@ async function forgotPassword(req, res) {
     await db.query('INSERT INTO token_reset (id_usuario, token, expires_at) VALUES ($1,$2,$3)', [user.id_usuario, token, exp]);
 
     const base = (process.env.FRONTEND_BASE_URL || 'https://waylopasswordreset.onrender.com').replace(/\/+$/, '');
-    const link = `${base}/reset-password?token=${token}`;
+    // Use hash routing for better static site compatibility
+    const link = `${base}/#token=${token}`;
     console.log('[password-reset] Generated reset link:', link);
     
     try {
